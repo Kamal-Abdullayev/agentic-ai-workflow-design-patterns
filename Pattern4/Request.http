@@ -1,0 +1,23 @@
+### Worker A
+POST http://localhost:5678/webhook-test/centralised-orchestration
+Content-Type: application/json
+
+{
+  "prompt": "Hey, what is your name?"
+}
+
+### Worker A & B
+POST http://localhost:5678/webhook-test/centralised-orchestration
+Content-Type: application/json
+
+{
+  "prompt": "List the Baltic countries along with their capitals and populations. Calculate the total combined population across all three"
+}
+
+### Worker A & B & C
+POST http://localhost:5678/webhook-test/centralised-orchestration
+Content-Type: application/json
+
+{
+  "prompt": "Analyse the long-term economic consequences of three distinct forces that have reshaped modern economies: (1) the globalisation of trade and supply chains since the 1990s, (2) the automation and robotics wave displacing manufacturing labour, and (3) the financialisation of the economy and the growing role of asset markets. For each force, examine how it altered income distribution, affected the middle class specifically, and what policy responses governments have attempted. Support all claims with concrete data and historical examples."
+}

@@ -1,0 +1,93 @@
+[
+  {
+    "user_prompt": "List the three most significant economic shifts the world has experienced, along with their benefits and drawbacks for middle-class populations. Support each with concrete examples and estimated impacts.",
+    "final_answer": "Three significant economic shifts have profoundly impacted global societies and middle-class populations: the Industrial Revolution in the 18th to 19th centuries, the Information Age beginning in the mid-20th century, and the Globalization Era starting from late 20th-century onwards.\n\nThe Industrial Revolution marked a period of rapid technological advancement with steam-powered machinery revolutionizing manufacturing and agriculture. This shift led to higher wages for skilled workers but also resulted in harsh labor conditions and job displacement, particularly affecting those without skills to adapt to new industrial roles. For example, the Luddite movement protested against textile mechanization that threatened traditional artisanal jobs.\n\nThe Information Age brought about a wave of technological innovation centered around computers and internet technologies. This era created numerous high-skilled jobs such as software engineering and data analysis, boosting economic growth in knowledge-based industries. However, this shift also exacerbated income inequality by favoring highly skilled workers while leaving less-skilled ones behind, leading to wage stagnation for the middle class. For instance, tech industry salaries far outpaced those in traditional manufacturing sectors during the 1980s to early 2000s.\n\nGlobalization has expanded international trade networks through agreements like NAFTA and WTO, facilitating global commerce and lifting billions out of poverty in emerging markets by creating export opportunities. However, this era also exposed domestic industries in developed nations to fierce international competition, causing job losses and reduced wages in manufacturing sectors critical to middle-income families. The Rust Belt region of the United States exemplifies how globalization led to significant economic restructuring and industrial decline.\n\nThese shifts can be analyzed through theoretical frameworks such as Kondratiev waves, which describe long-term cycles driven by technological innovation; Piketty's work on capital accumulation, highlighting historical trends where advancements favor high-skilled labor over low-skilled workers; and the Stolper-Samuelson theorem, suggesting that increased international trade benefits skilled workers but disadvantages unskilled ones.",
+    "metadata": {
+      "pattern": "Swarm — Loop-Based (splitInBatches)",
+      "pattern_category": "AI-Orchestrated Multi-Agent Pattern — Decentralised Swarm",
+      "run_timestamp": "2026-04-27T18:31:36.170Z",
+      "model": "qwen2.5:14b",
+      "model_provider": "Ollama (local)",
+      "latency_ms": 244872,
+      "latency_seconds": 244.87,
+      "llm_calls_actual": 6,
+      "llm_calls_max": 7,
+      "token_usage": {
+        "total_input_tokens": 105,
+        "total_output_tokens": 1390,
+        "total_tokens": 1441
+      },
+      "status": "completed",
+      "termination_reason": "agent_decided_complete"
+    },
+    "execution_trace": {
+      "dispatcher": {
+        "primary_agent_chosen": "practice",
+        "routing_rationale": "The question requires an analysis of real-world economic shifts and their practical impacts on middle-class populations, making it suitable for a practitioner.",
+        "token_estimate": 54
+      },
+      "swarm_turns": [
+        {
+          "turn": 1,
+          "agent": "practice",
+          "role": "Practice Specialist",
+          "contribution_level": "full",
+          "output": "Three significant economic shifts: Industrial Revolution (18th-19th centuries), Information Age (mid-20th century onwards), and the Globalization Era (late 20th-century onwards). The Industrial Revolution mechanized production, raising wages but also displacing workers. The Information Age enabled knowledge-based economies, creating high-paying tech jobs while widening income inequality due to skill polarization. Globalization spurred international trade, lifting billions out of poverty in emerging markets but eroding manufacturing jobs and middle-class incomes in developed nations.",
+          "token_estimate": 148,
+          "contributed": true
+        },
+        {
+          "turn": 2,
+          "agent": "critique",
+          "role": "Critique Specialist",
+          "contribution_level": "full",
+          "output": "The Industrial Revolution's mechanization led to significant job displacement and harsh labor conditions. Despite wage increases, many middle-class individuals faced economic insecurity due to rapid industrial change. The Information Age exacerbated income inequality by favoring highly skilled workers while leaving less-skilled ones behind, leading to wage stagnation for the middle class. Globalization exposed domestic industries to fierce international competition, causing job losses and reduced wages in manufacturing sectors critical to middle-income families.",
+          "token_estimate": 142,
+          "contributed": true
+        },
+        {
+          "turn": 3,
+          "agent": "theory",
+          "role": "Theory Specialist",
+          "contribution_level": "full",
+          "output": "The three economic shifts can be explained through various theoretical frameworks. Kondratiev waves describe long-term cycles in the global economy driven by technological innovation, fitting the Industrial Revolution and Information Age as distinct K-waves leading to substantial class restructuring. Piketty's work on capital accumulation highlights how technological advancements have historically exacerbated inequality, particularly evident during the Information Age with the rise of knowledge-based industries favoring high-skilled labor. Globalization can be analyzed through the Stolper-Samuelson theorem, suggesting that increased international trade benefits skilled workers but disadvantages unskilled ones, aligning with observed income polarization.",
+          "token_estimate": 191,
+          "contributed": true
+        },
+        {
+          "turn": 4,
+          "agent": "practice",
+          "role": "Practice Specialist",
+          "contribution_level": "full",
+          "output": "The Industrial Revolution introduced steam-powered machinery, which transformed agriculture and manufacturing. This shift led to the rise of factory systems and urbanization but also resulted in child labor and poor working conditions for many. For instance, the Luddite movement protested against textile mechanization that threatened their livelihoods. The Information Age saw the development of computers and internet technologies, creating numerous high-skilled jobs like software engineering and data analysis. However, this era also widened the wage gap between skilled and unskilled workers; for example, tech industry salaries far outpaced those in traditional manufacturing sectors during the 1980s to early 2000s. Globalization has facilitated international trade networks through agreements such as NAFTA (North American Free Trade Agreement) and WTO (World Trade Organization), boosting exports from developing countries while exposing developed nations' industries to global competition, leading to job losses in manufacturing sectors like the Rust Belt region of the United States.",
+          "token_estimate": 274,
+          "contributed": true
+        }
+      ],
+      "synthesis": {
+        "output": "Three significant economic shifts have profoundly impacted global societies and middle-class populations: the Industrial Revolution in the 18th to 19th centuries, the Information Age beginning in the mid-20th century, and the Globalization Era starting from late 20th-century onwards.\n\nThe Industrial Revolution marked a period of rapid technological advancement with steam-powered machinery revolutionizing manufacturing and agriculture. This shift led to higher wages for skilled workers but also resulted in harsh labor conditions and job displacement, particularly affecting those without skills to adapt to new industrial roles. For example, the Luddite movement protested against textile mechanization that threatened traditional artisanal jobs.\n\nThe Information Age brought about a wave of technological innovation centered around computers and internet technologies. This era created numerous high-skilled jobs such as software engineering and data analysis, boosting economic growth in knowledge-based industries. However, this shift also exacerbated income inequality by favoring highly skilled workers while leaving less-skilled ones behind, leading to wage stagnation for the middle class. For instance, tech industry salaries far outpaced those in traditional manufacturing sectors during the 1980s to early 2000s.\n\nGlobalization has expanded international trade networks through agreements like NAFTA and WTO, facilitating global commerce and lifting billions out of poverty in emerging markets by creating export opportunities. However, this era also exposed domestic industries in developed nations to fierce international competition, causing job losses and reduced wages in manufacturing sectors critical to middle-income families. The Rust Belt region of the United States exemplifies how globalization led to significant economic restructuring and industrial decline.\n\nThese shifts can be analyzed through theoretical frameworks such as Kondratiev waves, which describe long-term cycles driven by technological innovation; Piketty's work on capital accumulation, highlighting historical trends where advancements favor high-skilled labor over low-skilled workers; and the Stolper-Samuelson theorem, suggesting that increased international trade benefits skilled workers but disadvantages unskilled ones.",
+        "token_estimate": 581
+      },
+      "swarm_summary": {
+        "handoff_chain": "practice → critique → theory → practice",
+        "total_iterations": 4,
+        "contributors": 4,
+        "exited_early": true,
+        "termination_reason": "agent_decided_complete"
+      },
+      "structural_properties": {
+        "orchestration_type": "decentralised — dispatcher routes first agent; agents self-direct all subsequent turns",
+        "peer_awareness": "all agents know peer specialties before each turn",
+        "revisit_policy": "any agent can be re-contacted any number of times — only self-referral blocked",
+        "contribution_model": "full | partial | skip, re-evaluated every turn",
+        "termination_logic": "dual: agent outputs needs_handoff=false (AI-driven) OR iteration cap reached (code-enforced)",
+        "loop_mechanism": "splitInBatches (Loop Over Items) with loop-back edge from Exit Gate",
+        "state_passing": "$getWorkflowStaticData(global) carries accumulated_work, current_agent and handoff_instruction between iterations",
+        "max_iterations": 5,
+        "actual_iterations": 4,
+        "pattern_category": "AI-Orchestrated Multi-Agent Pattern — Decentralised Swarm"
+      },
+      "llm_limitation": "n8n Ollama node (lmChatOllama typeVersion 1) does not expose a temperature parameter. Temperature is governed by the Ollama server default (typically 0.8). To override it, set the value in the Ollama Modelfile or replace the native Ollama node with an HTTP Request node and pass temperature in the request body."
+    }
+  }
+]

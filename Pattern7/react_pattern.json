@@ -1,0 +1,873 @@
+{
+  "name": "Pattern 7 – ReAct (Reason and Act)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "react-pattern",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "373a1667-3396-4fef-b652-8d8f3ef92674",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2368,
+        176
+      ],
+      "webhookId": "6b588146-8bbd-427b-a9a4-cf5b8fc6eb51"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "449014f8-d86b-4f0f-b796-2549814e31d4",
+              "name": "start_time_ms",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e5b8782c-6984-4222-aaa8-8a68b184c5d3",
+      "name": "Record Start Time",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2160,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst MAX_ITER = 10;\n\nconst webhookJson = $('Webhook Trigger').item.json;\nconst inp         = $input.first().json;\n\nconst body = webhookJson.body || inp.body || inp;\n\nconst inputText = (body.user_prompt || body.prompt || body.question || '').trim();\nif (!inputText) {\n  throw new Error('No input found. Send: { \"user_prompt\": \"your question here\" }');\n}\n\nconst startMs   = inp.start_time_ms || Date.now();\nconst tokenEst  = Math.ceil(inputText.length / 4);\n\nconst g = $getWorkflowStaticData('global');\ng.react_state = {\n  input_text:           inputText,\n  trajectory:           [],\n  max_iterations:       MAX_ITER,\n  start_time_ms:        startMs,\n  input_token_estimate: tokenEst\n};\n\nreturn [{ json: {\n  input_text:           inputText,\n  max_iterations:       MAX_ITER,\n  start_time_ms:        startMs,\n  input_token_estimate: tokenEst\n} }];\n"
+      },
+      "id": "e91b9d16-fc0c-48a5-ac0c-e199df9f41aa",
+      "name": "Init ReAct State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1936,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst init = $input.first().json;\nconst MAX  = init.max_iterations || 10;\nreturn Array.from({ length: MAX }, (_, i) => ({\n  json: {\n    iteration:            i + 1,\n    input_text:           init.input_text,\n    start_time_ms:        init.start_time_ms,\n    input_token_estimate: init.input_token_estimate\n  }\n}));\n"
+      },
+      "id": "4173befb-efe6-44ea-8bbb-8c1082b37af5",
+      "name": "Prepare Iterations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1712,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "424e4801-136d-4263-80dc-fe7737fdadfd",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -1504,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst slot  = $input.first().json;\nconst g     = $getWorkflowStaticData('global');\nconst state = g.react_state || {};\nconst traj  = state.trajectory || [];\nconst hopsLeft = (state.max_iterations || 10) - slot.iteration;\n\nlet trajectoryText = 'No steps taken yet. Begin your reasoning now.';\nif (traj.length > 0) {\n  trajectoryText = traj.map((s, i) =>\n    'Step ' + (i+1) + ':' +\n    ' Thought: ' + s.thought +\n    ' | Action: ' + s.action +\n    ' | Input: '  + s.action_input +\n    (s.observation ? ' | Observation: ' + s.observation : '')\n  ).join(' --- ');\n}\n\nconst finalNote =\n  hopsLeft <= 0\n    ? ' FINAL STEP: You MUST output action=\"final_answer\" now. Compile all observations into a complete answer. Do NOT call any tool.'\n  : hopsLeft <= 2\n    ? ' WARNING: Only ' + hopsLeft + ' step(s) remaining. If you have enough information, output final_answer NOW.'\n    : '';\n\nconst promptText =\n'You are a ReAct (Reason + Act) agent. Solve any question step by step.' +\n' TOOL RULES:' +\n' Use \"wikipedia\" to look up facts, definitions or events you are uncertain about.' +\n' Use \"calculator\" for arithmetic - ONE expression per call, no commas in numbers.' +\n' Use \"datetime\" for anything involving dates, times, timezones, countdowns or scheduling.' +\n' For all other knowledge answer directly in final_answer.' +\n' Output final_answer as soon as you have enough information.' +\n' Available tools:' +\n' \"wikipedia\" - looks up a topic on Wikipedia. action_input: short search term (2-5 words).' +\n' \"calculator\" - evaluates one math expression. action_input: e.g. \"1000*(1.085^2)-1000\".' +\n' \"datetime\" - answers date/time/timezone questions. action_input: plain-language question or date.' +\n' Question: ' + state.input_text +\n' Previous steps: ' + trajectoryText + finalNote +\n' Decide your NEXT single step. Output ONLY valid JSON, no markdown:' +\n' {\"thought\":\"<reasoning>\",\"action\":\"<wikipedia|calculator|datetime|final_answer>\",\"action_input\":\"<single input or empty>\",\"final_answer\":\"<answer if final_answer else empty>\"}';\n\nreturn [{ json: {\n  iteration:            slot.iteration,\n  prompt_text:          promptText,\n  input_text:           state.input_text,\n  start_time_ms:        state.start_time_ms,\n  input_token_estimate: state.input_token_estimate,\n  hops_remaining:       hopsLeft,\n  max_iterations:       state.max_iterations || 10,\n  trajectory_length:    traj.length\n} }];\n"
+      },
+      "id": "cf108fd3-a0c4-4b6e-ad7e-b8e16a782d45",
+      "name": "Prepare ReAct Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt_text }}"
+      },
+      "id": "6cc44a6e-0856-469c-b246-8fa07558b846",
+      "name": "ReAct Agent",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        -992,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "7a4469ba-62cb-48e4-b008-edf4ba10d383",
+      "name": "Ollama – ReAct Agent",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -992,
+        368
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// chainLlm only passes through {text}, so we recover iteration from upstream\nconst iteration = $('Prepare ReAct Context').item.json.iteration;\nconst g      = $getWorkflowStaticData('global');\nconst state  = g.react_state || {};\nconst traj   = state.trajectory || [];\n\nconst raw    = ($input.first().json.text || $input.first().json.response || '').trim();\nconst VALID  = ['calculator','wikipedia','datetime','final_answer'];\n\nlet parsed;\ntry {\n  // Robust extraction: find the first complete {...} JSON object in the output\n  // This handles LLM output that has prose before/after the JSON\n  const jsonMatch = raw.match(/\\{[\\s\\S]*\\}/);\n  if (!jsonMatch) throw new Error('No JSON object found in LLM response');\n  parsed = JSON.parse(jsonMatch[0]);\n} catch(e) {\n  parsed = {\n    thought:      'Parse error: ' + e.message,\n    action:       'final_answer',\n    action_input: '',\n    final_answer: raw\n  };\n}\n\nif (!VALID.includes(parsed.action)) parsed.action = 'final_answer';\n\nconst step = {\n  step:           iteration,\n  thought:        parsed.thought      || '',\n  action:         parsed.action,\n  action_input:   parsed.action_input || '',\n  final_answer:   parsed.final_answer || '',\n  observation:    '',\n  token_estimate: Math.ceil((parsed.thought || '').length / 4) +\n                  Math.ceil((parsed.final_answer || '').length / 4)\n};\ntraj.push(step);\ng.react_state = { ...state, trajectory: traj };\n\nconst isFinalAnswer = parsed.action === 'final_answer';\nconst capReached    = iteration >= (state.max_iterations || 10);\nconst isDone        = isFinalAnswer || capReached;\nconst termReason    = capReached && !isFinalAnswer ? 'max_iterations_safety_cap' : 'agent_reached_final_answer';\n\n// Reconstruct full context — chainLlm drops all input fields\nreturn [{ json: {\n  iteration:            iteration,\n  input_text:           state.input_text,\n  start_time_ms:        state.start_time_ms,\n  input_token_estimate: state.input_token_estimate,\n  action:               parsed.action,\n  action_input:         parsed.action_input || '',\n  final_answer:         parsed.final_answer || '',\n  is_done:              isDone,\n  termination_reason:   termReason\n} }];\n"
+      },
+      "id": "917bfd60-c984-4946-bbb7-4feb5b242c30",
+      "name": "Parse Agent Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -688,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "8e15e033-c87a-47a6-9fd4-a66cdd49cd7b",
+              "leftValue": "={{ $json.is_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e40b409c-06b8-4674-aeea-10fbb6679f55",
+      "name": "Exit Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        192
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst d   = $input.first().json;\nconst g   = $getWorkflowStaticData('global');\nconst state = g.react_state || {};\nconst traj  = state.trajectory || [];\n\nconst finalStep = [...traj].reverse().find(s => s.action === 'final_answer');\nconst finalAns  = finalStep ? finalStep.final_answer : '(no final answer — safety cap triggered)';\n\nconst toolsUsed = traj.filter(s => s.action !== 'final_answer').map(s => s.tool_used || s.action);\nconst unique    = [...new Set(toolsUsed)];\n\nreturn [{ json: {\n  input_text:         state.input_text,\n  final_answer:       finalAns,\n  trajectory:         traj,\n  total_steps:        traj.length,\n  tools_used:         toolsUsed,\n  unique_tools:       unique,\n  tool_calls_count:   toolsUsed.length,\n  termination_reason: d.termination_reason || 'unknown',\n  start_time_ms:      state.start_time_ms,\n  input_token_estimate: state.input_token_estimate\n} }];\n"
+      },
+      "id": "ba3ce967-27c8-4037-b31a-800d347b43c7",
+      "name": "Results Collector",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst endMs  = Date.now();\nconst c      = $input.first().json;\nconst latMs  = endMs - c.start_time_ms;\nconst latSec = parseFloat((latMs / 1000).toFixed(2));\n\nconst totalSteps  = c.total_steps || 0;\nconst llmCallsMax = 10;\n\nconst inpTok   = c.input_token_estimate || 0;\nconst agentTok = (c.trajectory || []).reduce((s,t) => s + (t.token_estimate || 0), 0);\nconst totalTok = inpTok + agentTok;\n\nreturn [{ json: {\n\n  user_prompt:  c.input_text,\n  final_answer: c.final_answer,\n\n  metadata: {\n    pattern:          'ReAct — Reason and Act',\n    pattern_category: 'Single-Agent Reasoning Pattern',\n    run_timestamp:    new Date().toISOString(),\n    model:            'qwen2.5:14b',\n    model_provider:   'Ollama (local)',\n    latency_ms:       latMs,\n    latency_seconds:  latSec,\n    llm_calls_actual: totalSteps,\n    llm_calls_max:    llmCallsMax,\n    token_usage: {\n      total_input_tokens:  inpTok,\n      total_output_tokens: agentTok,\n      total_tokens:        totalTok\n    },\n    status:             'completed',\n    termination_reason: c.termination_reason || 'unknown'\n  },\n\n  execution_trace: {\n    trajectory: (c.trajectory || []).map(t => ({\n      step:           t.step,\n      thought:        t.thought,\n      action:         t.action,\n      action_input:   t.action_input,\n      observation:    t.observation || (t.action === 'final_answer' ? '(final answer — no tool called)' : ''),\n      tool_used:      t.tool_used   || (t.action !== 'final_answer' ? t.action : 'none'),\n      final_answer:   t.action === 'final_answer' ? t.final_answer : '',\n      token_estimate: t.token_estimate || 0\n    })),\n\n    react_summary: {\n      total_steps:        totalSteps,\n      tool_calls_count:   c.tool_calls_count,\n      unique_tools_used:  c.unique_tools,\n      tools_sequence:     c.tools_used,\n      exited_early:       totalSteps < llmCallsMax,\n      termination_reason: c.termination_reason\n    },\n\n    structural_properties: {\n      pattern_category:   'Single-Agent Reasoning Pattern',\n      agent_count:        1,\n      orchestration_type: 'self-directed — single agent decides all tool calls and termination autonomously',\n      tool_execution:     'specialist AI sub-agents (Calculator, Wikipedia, DateTime) — each is an agent node with its own LLM and native tool, no intermediate code nodes',\n      transparency:       'full trajectory (thought + action + observation) preserved per step',\n      loop_mechanism:     'splitInBatches with loop-back from Format Observation',\n      termination_logic:  'agent outputs action=final_answer (AI-driven) OR step >= 10 (safety cap)',\n      state_passing:      \"$getWorkflowStaticData('global').react_state carries full trajectory between iterations\",\n      max_iterations:     llmCallsMax,\n      actual_steps:       totalSteps\n    },\n\n    llm_limitation: 'Token counts are character-length estimates (chars / 4). The Ollama node does not return native token usage data.'\n  }\n\n} }];\n"
+      },
+      "id": "bd876f65-5a87-49a0-9ce6-4b06bad49ef8",
+      "name": "Compute Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "62269368-0b73-45b4-bfaf-fe31c82582be",
+      "name": "Respond – Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        176,
+        16
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "e0c7548e-8d81-4b6b-81b8-a012bf6de6d8",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "calculator",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4e3bb98c-3032-4297-9fd4-dbbe9130c5f7",
+      "name": "If Calculator?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -320,
+        368
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "3328e5a4-9144-4cd3-9e31-5bd9f000fdd4",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "datetime",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "682cacfa-ff36-4f78-8283-39d12c0ca90a",
+      "name": "If DateTime?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -128,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst d     = $input.first().json;\nconst g     = $getWorkflowStaticData('global');\nconst state = g.react_state || {};\nconst traj  = state.trajectory || [];\n\nif (traj.length > 0) {\n  traj[traj.length - 1].observation = d.observation || '';\n  traj[traj.length - 1].tool_used   = d.tool_used   || '';\n}\ng.react_state = { ...state, trajectory: traj };\n\nreturn [{ json: {\n  iteration:            d.iteration,\n  input_text:           d.input_text  || state.input_text,\n  start_time_ms:        d.start_time_ms || state.start_time_ms,\n  input_token_estimate: d.input_token_estimate || state.input_token_estimate,\n  last_observation:     d.observation,\n  last_tool:            d.tool_used\n} }];\n"
+      },
+      "id": "7b4a5386-f355-49a6-950c-cef18c83011d",
+      "name": "Format Observation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        976,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.action_input }}",
+        "options": {}
+      },
+      "id": "3e3a3032-a446-4d12-857c-0053153e286b",
+      "name": "Calculator Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -96,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "3b315c0d-e3c3-4802-9a74-ff3d509e46e5",
+      "name": "Ollama – Calculator Agent",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        400
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "id": "e5e601a6-3b44-4fd4-a595-b5e9c120236f",
+      "name": "Calculator Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        48,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1b2c3d4-e5f6-7890-aaaa-111111111111",
+              "name": "observation",
+              "value": "={{ 'Calculator Sub-Agent: ' + $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "a1b2c3d4-e5f6-7890-bbbb-111111111112",
+              "name": "tool_used",
+              "value": "calculator",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e7ea9859-678b-4abd-be67-6c35e45d6b37",
+      "name": "Calculator Agent – Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        320,
+        208
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.action_input }}",
+        "options": {}
+      },
+      "id": "ac9e9f82-9d4d-480d-9bd8-d942391a19ba",
+      "name": "DateTime Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        272,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "523faf2e-a412-4aca-b492-222a67bed8c8",
+      "name": "Ollama – DateTime Agent",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        272,
+        640
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "datetime_calculator",
+        "description": "Calculates date and time values. Accepted input formats: 'today' → returns today's date and day; 'days_until:YYYY-MM-DD' → days from today until a future date; 'days_between:DATE1:DATE2' → days between two dates; 'add_days:DATE:N' → adds N days to a date; 'day_of_week:YYYY-MM-DD' → returns the weekday name for a date.",
+        "jsCode": "\nconst input = (query || 'today').trim().toLowerCase();\ntry {\n  const now      = new Date();\n  const DAYS     = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];\n  const MONTHS   = ['January','February','March','April','May','June','July','August','September','October','November','December'];\n  function parseDate(s) { const d = new Date(s); if (isNaN(d)) throw new Error('Invalid date: \"' + s + '\"'); return d; }\n  function diffDays(a, b) { return Math.round((b - a) / 86400000); }\n  function fmt(dt) { return dt.toISOString().split('T')[0] + ' (' + DAYS[dt.getDay()] + ')'; }\n  let result;\n  if (['today','now','current date','current_date'].includes(input)) {\n    result = 'Today is ' + fmt(now) + ', ' + MONTHS[now.getMonth()] + ' ' + now.getDate() + ', ' + now.getFullYear() + '.';\n  } else if (input.startsWith('days_until:')) {\n    const t = parseDate(input.slice(11));\n    result  = 'Days until ' + fmt(t) + ': ' + diffDays(now, t) + ' day(s).';\n  } else if (input.startsWith('days_between:')) {\n    const parts = input.slice(13).split(':');\n    result = 'Days between ' + parts[0] + ' and ' + parts[1] + ': ' + Math.abs(diffDays(parseDate(parts[0]), parseDate(parts[1]))) + ' day(s).';\n  } else if (input.startsWith('add_days:')) {\n    const parts = input.slice(9).split(':');\n    const res   = new Date(parseDate(parts[0]).getTime() + parseInt(parts[1]) * 86400000);\n    result = parts[0] + ' + ' + parts[1] + ' days = ' + fmt(res) + '.';\n  } else if (input.startsWith('day_of_week:')) {\n    const t = parseDate(input.slice(12)); result = t.toISOString().split('T')[0] + ' is a ' + DAYS[t.getDay()] + '.';\n  } else {\n    try { const t = parseDate(input); result = fmt(t) + ' — ' + diffDays(now, t) + ' day(s) from today.'; }\n    catch(_) { result = 'Supported formats: \"today\" | \"days_until:YYYY-MM-DD\" | \"days_between:DATE1:DATE2\" | \"add_days:DATE:N\" | \"day_of_week:YYYY-MM-DD\"'; }\n  }\n  return result;\n} catch(e) { return 'DateTime error: ' + e.message; }\n"
+      },
+      "id": "27e1a955-e476-4d6e-919b-b169316c7f05",
+      "name": "DateTime Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        416,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b2c3d4e5-f6a7-8901-aaaa-222222222221",
+              "name": "observation",
+              "value": "={{ 'DateTime Sub-Agent: ' + $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "b2c3d4e5-f6a7-8901-bbbb-222222222222",
+              "name": "tool_used",
+              "value": "datetime",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "89de8e53-754b-45de-8c1b-aac9602e3ff2",
+      "name": "DateTime Agent – Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        576,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.action_input }}",
+        "options": {}
+      },
+      "id": "faf51529-86d7-496a-8a82-134a72a65a7f",
+      "name": "Wikipedia Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        256,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "c0558dfe-c38d-4ff5-ab57-46a3de45ce82",
+      "name": "Ollama – Wikipedia Agent",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        256,
+        992
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "name": "wikipedia_search",
+        "description": "Searches Wikipedia and returns the introductory extract for a topic. Use for facts, definitions, historical events, biographies, or any knowledge you are uncertain about. action_input: a short, specific search term (2-5 words).",
+        "jsCode": "\nconst q = encodeURIComponent((query || '').trim());\nif (!q) return 'No search term provided.';\n\nconst searchUrl =\n  'https://en.wikipedia.org/w/api.php?action=query&list=search' +\n  '&srsearch=' + q + '&format=json&srlimit=2&utf8=1&origin=*';\n\ntry {\n  const searchResp = await fetch(searchUrl);\n  const searchData = await searchResp.json();\n  const hits = (searchData.query || {}).search || [];\n  if (!hits.length) return 'No Wikipedia results found for: ' + query;\n\n  // Fetch the intro extract of the top result\n  const topTitle   = encodeURIComponent(hits[0].title);\n  const extractUrl =\n    'https://en.wikipedia.org/w/api.php?action=query&prop=extracts' +\n    '&exintro=true&explaintext=true&titles=' + topTitle +\n    '&format=json&origin=*';\n\n  const extractResp = await fetch(extractUrl);\n  const extractData = await extractResp.json();\n  const pages = Object.values((extractData.query || {}).pages || {});\n  if (!pages.length) return 'Wikipedia: ' + hits[0].title + ' — ' + hits[0].snippet.replace(/<[^>]+>/g,'');\n\n  const page    = pages[0];\n  const extract = (page.extract || '').slice(0, 800).trim();\n  return 'Wikipedia – ' + page.title + ':\\n' + extract;\n} catch(e) {\n  return 'Wikipedia lookup failed: ' + e.message;\n}\n"
+      },
+      "id": "7b5c2103-9658-4328-94e2-15cb785c2235",
+      "name": "Wikipedia Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.1,
+      "position": [
+        400,
+        1008
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c3d4e5f6-a7b8-9012-aaaa-333333333331",
+              "name": "observation",
+              "value": "={{ 'Wikipedia Sub-Agent: ' + $json.output }}",
+              "type": "string"
+            },
+            {
+              "id": "c3d4e5f6-a7b8-9012-bbbb-333333333332",
+              "name": "tool_used",
+              "value": "wikipedia",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9aafcff9-a5b7-4642-bcdc-4d6c6e0c5ce1",
+      "name": "Wikipedia Agent – Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        608,
+        800
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Record Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Start Time": {
+      "main": [
+        [
+          {
+            "node": "Init ReAct State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init ReAct State": {
+      "main": [
+        [
+          {
+            "node": "Prepare Iterations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Iterations": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Results Collector",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare ReAct Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare ReAct Context": {
+      "main": [
+        [
+          {
+            "node": "ReAct Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ReAct Agent": {
+      "main": [
+        [
+          {
+            "node": "Parse Agent Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Agent Output": {
+      "main": [
+        [
+          {
+            "node": "Exit Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exit Gate": {
+      "main": [
+        [
+          {
+            "node": "Results Collector",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Calculator?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Results Collector": {
+      "main": [
+        [
+          {
+            "node": "Compute Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Metrics": {
+      "main": [
+        [
+          {
+            "node": "Respond – Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Observation": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – ReAct Agent": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "ReAct Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Calculator?": {
+      "main": [
+        [
+          {
+            "node": "Calculator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If DateTime?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator Agent": {
+      "main": [
+        [
+          {
+            "node": "Calculator Agent – Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator Agent – Output": {
+      "main": [
+        [
+          {
+            "node": "Format Observation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Calculator Agent": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Calculator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Calculator Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If DateTime?": {
+      "main": [
+        [
+          {
+            "node": "DateTime Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wikipedia Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DateTime Agent": {
+      "main": [
+        [
+          {
+            "node": "DateTime Agent – Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DateTime Agent – Output": {
+      "main": [
+        [
+          {
+            "node": "Format Observation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – DateTime Agent": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "DateTime Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DateTime Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "DateTime Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia Agent": {
+      "main": [
+        [
+          {
+            "node": "Wikipedia Agent – Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia Agent – Output": {
+      "main": [
+        [
+          {
+            "node": "Format Observation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Wikipedia Agent": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Wikipedia Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wikipedia Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Wikipedia Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "bb45dcea-f261-499c-a688-778167740c33",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3b08f72cfb80f155cac1550cf0e5e2633a2c06cfaacd1f2ea62b126dcabcb29f"
+  },
+  "id": "HIR4q2H4736HlqOG",
+  "tags": []
+}

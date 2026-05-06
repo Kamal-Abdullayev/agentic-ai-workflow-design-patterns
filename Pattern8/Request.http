@@ -1,0 +1,28 @@
+### Step 1 – Submit prompt
+POST http://localhost:5678/webhook-test/hitl-pattern
+Content-Type: application/json
+
+{
+  "prompt": "List the Baltic countries along with their capitals and populations. Calculate the total combined population across all three."
+}
+
+> {%
+    client.global.set("resume_url", response.body.resume_url);
+%}
+
+### Step 2 – Approve
+POST {{resume_url}}
+Content-Type: application/json
+
+{
+  "decision": "Approve"
+}
+
+### Step 2 – Reject
+POST {{resume_url}}
+Content-Type: application/json
+
+{
+  "decision": "reject",
+  "feedback": "Include any relevant references used."
+}

@@ -1,0 +1,60 @@
+[
+  {
+    "user_prompt": "Hey, what is your name?",
+    "final_answer": "My name is Qwen.",
+    "metadata": {
+      "pattern": "ReAct — Reason and Act",
+      "pattern_category": "Single-Agent Reasoning Pattern",
+      "run_timestamp": "2026-04-28T21:46:56.275Z",
+      "model": "qwen2.5:14b",
+      "model_provider": "Ollama (local)",
+      "latency_ms": 12890,
+      "latency_seconds": 12.89,
+      "llm_calls_actual": 1,
+      "llm_calls_max": 10,
+      "token_usage": {
+        "total_input_tokens": 6,
+        "total_output_tokens": 60,
+        "total_tokens": 66
+      },
+      "status": "completed",
+      "termination_reason": "agent_reached_final_answer"
+    },
+    "execution_trace": {
+      "trajectory": [
+        {
+          "step": 1,
+          "thought": "The question does not require any calculation, analysis of text properties, or the current time. It's a direct query about my name.",
+          "action": "final_answer",
+          "action_input": "",
+          "observation": "(final answer — no tool called)",
+          "tool_used": "none",
+          "final_answer": "My name is Qwen.",
+          "token_estimate": 60
+        }
+      ],
+      "react_summary": {
+        "total_steps": 1,
+        "tool_calls_count": 0,
+        "unique_tools_used": [],
+        "tools_sequence": [],
+        "exited_early": true,
+        "termination_reason": "agent_reached_final_answer"
+      },
+      "structural_properties": {
+        "pattern_category": "Single-Agent Reasoning Pattern",
+        "agent_count": 1,
+        "orchestration_type": "self-directed — single agent decides all tool calls and termination autonomously",
+        "tool_execution": "deterministic code nodes (calculator, text_analyze, knowledge_lookup) — no LLM for tool execution",
+        "transparency": "full trajectory (thought + action + observation) preserved for auditability",
+        "loop_back_node": "Format Observation → Loop Over Items (contrast: Swarm loops back from Exit Gate)",
+        "termination_logic": "agent outputs action=final_answer (AI-driven) OR step >= 6 (code-enforced safety cap)",
+        "loop_mechanism": "splitInBatches (Loop Over Items) with loop-back edge from Format Observation — tool execution happens between loop iterations",
+        "state_passing": "$getWorkflowStaticData('global').react_state carries full trajectory between iterations",
+        "max_iterations": 10,
+        "actual_steps": 1
+      },
+      "llm_limitation": "n8n Ollama node (lmChatOllama typeVersion 1) does not expose a temperature parameter — metadata.temperature is therefore null. Temperature is governed by the Ollama server default (typically 0.8). To override it, set the value in the Ollama Modelfile or replace the native Ollama node with an HTTP Request node and pass temperature in the request body. Token counts are character-length estimates (chars ÷ 4) because the Ollama node does not return token usage data natively."
+    }
+  }
+]

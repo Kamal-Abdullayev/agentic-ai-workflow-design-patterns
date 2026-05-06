@@ -1,0 +1,463 @@
+{
+  "name": "Pattern 1: Sequential",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sequential-pattern",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f71cb560-ea93-4607-9752-1450532419ee",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        2192,
+        784
+      ],
+      "webhookId": "f476fe9b-ddc0-4393-8f03-fe923c68b349"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ts1",
+              "name": "start_time_ms",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            },
+            {
+              "id": "ts2",
+              "name": "input_text",
+              "value": "={{ $json.body.prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "ts3",
+              "name": "input_token_estimate",
+              "value": "={{ Math.ceil($json.body.prompt.length / 4) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d9c73ba2-de86-40f7-961d-fa931f004dbd",
+      "name": "Record Start Time",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2432,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are an Answer Agent (Stage 1 of 3).\nDirectly answer the user's question clearly and concisely.\n\nRules:\n- For any substantive question or request: give a direct, clear answer.\n  If the question involves numbers, dates, calculations or multi-step reasoning,\n  also flag the specific values or sub-questions that need further verification.\n- For pure greetings, single meaningless words, gibberish or empty input:\n  respond with exactly: INSUFFICIENT_INPUT\n\nUser input:\n{{ $('Record Start Time').item.json.input_text }}"
+      },
+      "id": "6c49ed53-d737-49c7-878b-ffd81367c0a6",
+      "name": "Stage 1 - Answer Agent",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        2672,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "69802480-f243-45b4-9a91-d48e8c72a1f5",
+      "name": "Ollama - Stage 1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        2672,
+        992
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1t1",
+              "name": "stage1_text",
+              "value": "={{ $json.text }}",
+              "type": "string"
+            },
+            {
+              "id": "s1t2",
+              "name": "stage1_token_estimate",
+              "value": "={{ Math.ceil($json.text.length / 4) }}",
+              "type": "number"
+            },
+            {
+              "id": "s1t3",
+              "name": "stage1_is_insufficient",
+              "value": "={{ $json.text.trim() === 'INSUFFICIENT_INPUT' }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c9bbfd31-ca9f-49b7-bd8d-b35238dd7512",
+      "name": "Compute Stage 1 Tokens",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2960,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "gate_tokens",
+              "leftValue": "={{ $json.stage1_token_estimate }}",
+              "rightValue": 30,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            },
+            {
+              "id": "gate_sentinel",
+              "leftValue": "={{ $json.stage1_is_insufficient }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "0d507379-1140-49b2-a520-4278a1d4c34d",
+      "name": "Gate - Token Quality Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3216,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a Calculator and Analysis Agent (Stage 2 of 3).\nReview the question and the Stage 1 answer. Perform any calculations,\nverifications, date/time checks or logical reasoning the question requires.\n\nInstructions:\n- If calculations or verifications are needed: work through them step by step,\n  showing your reasoning.\n- If dates, times, numbers or facts need checking: compute or verify them.\n- If NO calculations are needed: write exactly:\n  NO_CALCULATIONS_REQUIRED\n  Then restate the Stage 1 answer unchanged on a new line.\n- Do NOT write a final polished answer yet -- that is Stage 3's job.\n\nOriginal question:\n{{ $('Record Start Time').item.json.input_text }}\n\nStage 1 initial answer:\n{{ $('Stage 1 - Answer Agent').item.json.text }}"
+      },
+      "id": "34307293-a4fe-452a-a8de-06b914291c42",
+      "name": "Stage 2 - Calculator",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        3472,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "e7f3f599-7d7e-4597-9793-18cfcc924fe2",
+      "name": "Ollama - Stage 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        3472,
+        992
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the Final Answer Agent (Stage 3 of 3).\nProduce the definitive, polished response that combines Stage 1's answer\nwith Stage 2's calculations or analysis.\n\nRequirements:\n- Write in clear, natural flowing prose -- no bullet points, no headers\n- Directly and fully address the original question\n- Integrate any calculated values or corrections from Stage 2\n- Be complete but concise -- remove redundancy\n- Match the tone to the topic\n- Return ONLY the final answer -- no labels, no preamble, nothing else\n\nOriginal question:\n{{ $('Record Start Time').item.json.input_text }}\n\nStage 1 initial answer:\n{{ $('Stage 1 - Answer Agent').item.json.text }}\n\nStage 2 analysis / calculations:\n{{ $('Stage 2 - Calculator').item.json.text }}"
+      },
+      "id": "5400dcea-d321-43a7-894f-327c7cb378eb",
+      "name": "Stage 3 - Final Answer",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        3760,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "a3069bc8-2a1b-45ae-af8f-c997ebd9e982",
+      "name": "Ollama - Stage 3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        3760,
+        992
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst startMs   = $('Record Start Time').item.json.start_time_ms;\nconst inputText = $('Record Start Time').item.json.input_text;\nconst inputTok  = $('Record Start Time').item.json.input_token_estimate;\nconst s1Text = $('Stage 1 - Answer Agent').item.json.text || '';\nconst s1Tok  = $('Compute Stage 1 Tokens').item.json.stage1_token_estimate || 0;\nconst s2Text = $('Stage 2 - Calculator').item.json.text || '';\nconst s3Text = $input.first().json.text || '';\nconst endMs         = Date.now();\nconst latency_ms    = endMs - startMs;\nconst s2Tok         = Math.ceil(s2Text.length / 4);\nconst s3Tok         = Math.ceil(s3Text.length / 4);\nconst totalInputTok  = inputTok + s1Tok;\nconst totalOutputTok = s1Tok + s2Tok + s3Tok;\nconst totalTok       = totalInputTok + s2Tok + s3Tok;\nconst s3Words        = s3Text.split(/\\s+/).filter(w => w.length > 0).length;\nconst s1HasBullets   = /^[-\\u2022*]\\s/m.test(s1Text);\nconst didCalc        = !s2Text.trim().startsWith('NO_CALCULATIONS_REQUIRED');\nreturn [{\n  json: {\n    user_prompt:  inputText,\n    final_answer: s3Text,\n    metadata: {\n      pattern:          'Sequential Pipeline',\n      pattern_category: 'Deterministic Workflow Pattern',\n      run_timestamp:    new Date().toISOString(),\n      model:            'qwen2.5:14b',\n      model_provider:   'Ollama (local)',\n      temperature:      0.7,\n      latency_ms:       latency_ms,\n      latency_seconds:  parseFloat((latency_ms / 1000).toFixed(2)),\n      llm_calls_actual: 3,\n      llm_calls_max:    3,\n      token_usage: {\n        total_input_tokens:  totalInputTok,\n        total_output_tokens: totalOutputTok,\n        total_tokens:        totalTok\n      },\n      status:            'completed',\n      termination_reason: 'all_stages_completed'\n    },\n    execution_trace: {\n      gate_decision:         'PASS',\n      gate_logic:            'Stage 1 token estimate >= 30 AND output != INSUFFICIENT_INPUT',\n      stage1_token_estimate: s1Tok,\n      stage_outputs: {\n        stage1_answer:     s1Text,\n        stage2_calculator: s2Text,\n        stage3_final:      s3Text\n      },\n      quality_checks: {\n        stage1_uses_bullets:           s1HasBullets,\n        stage2_performed_calculations: didCalc,\n        stage3_word_count:             s3Words,\n        all_stages_completed:          s1Text.length > 0 && s2Text.length > 0 && s3Text.length > 0\n      }\n    }\n  }\n}];\n"
+      },
+      "id": "f9b2e952-54a6-461d-bc44-1d746a77707d",
+      "name": "RQ3 - Compute Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4032,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "390358d5-84d0-4c37-8945-50afbabfe0cd",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        4272,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst startMs       = $('Record Start Time').item.json.start_time_ms;\nconst inputText     = $('Record Start Time').item.json.input_text;\nconst inputTok      = $('Record Start Time').item.json.input_token_estimate;\nconst s1Tok         = $('Compute Stage 1 Tokens').item.json.stage1_token_estimate;\nconst s1Text        = $('Stage 1 - Answer Agent').item.json.text || '';\nconst isInsufficient= $('Compute Stage 1 Tokens').item.json.stage1_is_insufficient;\nconst latency_ms    = Date.now() - startMs;\nreturn [{\n  json: {\n    user_prompt:  inputText,\n    final_answer: s1Text,\n    metadata: {\n      pattern:          'Sequential Pipeline',\n      pattern_category: 'Deterministic Workflow Pattern',\n      run_timestamp:    new Date().toISOString(),\n      model:            'qwen2.5:14b',\n      model_provider:   'Ollama (local)',\n      temperature:      0.7,\n      latency_ms:       latency_ms,\n      latency_seconds:  parseFloat((latency_ms / 1000).toFixed(2)),\n      llm_calls_actual: 1,\n      llm_calls_max:    3,\n      token_usage: {\n        total_input_tokens:  inputTok,\n        total_output_tokens: s1Tok,\n        total_tokens:        inputTok + s1Tok\n      },\n      status:            'gate_rejected',\n      termination_reason: isInsufficient\n        ? 'stage1_returned_insufficient_input'\n        : 'stage1_token_count_below_threshold'\n    },\n    execution_trace: {\n      gate_decision:          'REJECT',\n      gate_logic:             'Stage 1 token estimate >= 30',\n      stage1_token_estimate:  s1Tok,\n      stage1_is_insufficient: isInsufficient,\n      stage1_raw_output:      s1Text,\n      rq3_note:               'Gate blocked - only 1 of 3 LLM calls was made'\n    }\n  }\n}];\n"
+      },
+      "id": "bd64c12b-eb74-43dd-bdf5-4d8f3067ee26",
+      "name": "Build Gate Rejected Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3456,
+        1168
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b2dae70b-b4f6-437c-8122-fc32f9daab19",
+      "name": "Respond - Gate Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3728,
+        1168
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Record Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Start Time": {
+      "main": [
+        [
+          {
+            "node": "Stage 1 - Answer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Stage 1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Stage 1 - Answer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stage 1 - Answer Agent": {
+      "main": [
+        [
+          {
+            "node": "Compute Stage 1 Tokens",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Stage 1 Tokens": {
+      "main": [
+        [
+          {
+            "node": "Gate - Token Quality Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate - Token Quality Check": {
+      "main": [
+        [
+          {
+            "node": "Stage 2 - Calculator",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Gate Rejected Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Stage 2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Stage 2 - Calculator",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stage 2 - Calculator": {
+      "main": [
+        [
+          {
+            "node": "Stage 3 - Final Answer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Stage 3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Stage 3 - Final Answer",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stage 3 - Final Answer": {
+      "main": [
+        [
+          {
+            "node": "RQ3 - Compute Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RQ3 - Compute Metrics": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Gate Rejected Response": {
+      "main": [
+        [
+          {
+            "node": "Respond - Gate Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "f4c54b7b-3356-4bea-82ad-e63a498d82bc",
+  "meta": {
+    "instanceId": "3b08f72cfb80f155cac1550cf0e5e2633a2c06cfaacd1f2ea62b126dcabcb29f"
+  },
+  "id": "ekfZscSu2McrKbzt",
+  "tags": []
+}

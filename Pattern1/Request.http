@@ -1,0 +1,32 @@
+### Short prompt - less token usage case
+POST http://localhost:5678/webhook-test/sequential-pattern
+Content-Type: application/json
+
+{
+  "prompt": "List the 5 most populated cities. Do not provide any additional information"
+}
+
+
+### Short prompt - less token usage case
+POST http://localhost:5678/webhook-test/sequential-pattern
+Content-Type: application/json
+
+{
+"prompt": "Hey, what is your name?"
+}
+
+### Full flow
+POST http://localhost:5678/webhook-test/sequential-pattern
+Content-Type: application/json
+
+{
+  "prompt": "List the Baltic countries along with their capitals and populations. Calculate the total combined population across all three"
+}
+
+### Full flow - Unnecessary step
+POST http://localhost:5678/webhook-test/sequential-pattern
+Content-Type: application/json
+
+{
+  "prompt": "List the 5 most populated cities"
+}

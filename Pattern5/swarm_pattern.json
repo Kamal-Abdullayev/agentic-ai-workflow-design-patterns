@@ -1,0 +1,720 @@
+{
+  "name": "Pattern 5: Swarm",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "swarm-loop",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8c80b8ce-5b3a-4ae3-88f2-3e261a9994fa",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        8128,
+        432
+      ],
+      "webhookId": "b2c3d4e5-f6a7-8901-bcde-f01234567891"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sl_t1",
+              "name": "start_time_ms",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            },
+            {
+              "id": "sl_t2",
+              "name": "input_text",
+              "value": "={{ $json.body.prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "sl_t3",
+              "name": "input_token_estimate",
+              "value": "={{ Math.ceil($json.body.prompt.length/4) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6994dce7-8bed-41e0-9fad-0943ea33f820",
+      "name": "Record Start Time",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        8368,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language.\n\nYou are a dispatcher in an AI research swarm. Route this question to the ONE specialist best suited to start:\n- \"theory\"   — expert in theoretical foundations, academic definitions and conceptual understanding\n- \"practice\" — expert in real-world applications, system implementations and practical impact\n- \"critique\" — expert in limitations, trade-offs, risks and critical analysis\n\nQuestion: {{ $('Record Start Time').item.json.input_text }}\n\nOutput ONLY valid JSON:\n{\"primary_agent\": \"<theory|practice|critique>\", \"routing_rationale\": \"<one sentence>\"}"
+      },
+      "id": "fbfd7c8d-9e2f-4ee1-b348-0448583c64a7",
+      "name": "Dispatcher – Router",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        8592,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "f9ddbced-cb89-4370-a222-980f1e325467",
+      "name": "Ollama – Dispatcher",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        8592,
+        608
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst dispOut  = ($input.first().json.text || '').trim();\nconst initData = $('Record Start Time').item.json;\nconst VALID    = ['theory', 'practice', 'critique'];\nconst MAX_ITER = 5;\nlet parsed     = { primary_agent: 'theory', routing_rationale: 'Fallback — parse error' };\nlet fallback   = false;\n\ntry {\n  const m = dispOut.match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    const p = JSON.parse(m[0]);\n    if (p && VALID.includes(p.primary_agent)) { parsed = p; }\n    else { fallback = true; }\n  } else { fallback = true; }\n} catch(e) { fallback = true; }\n\nconst g = $getWorkflowStaticData('global');\ng.swarm_state = {\n  current_agent:             parsed.primary_agent,\n  handoff_instruction:       '',\n  accumulated_work:          [],\n  routing_rationale:         parsed.routing_rationale,\n  dispatcher_token_estimate: Math.ceil(dispOut.length / 4),\n  max_iterations:            MAX_ITER,\n  input_text:                initData.input_text,\n  start_time_ms:             initData.start_time_ms,\n  input_token_estimate:      initData.input_token_estimate,\n  parse_fallback_used:       fallback\n};\n\nreturn [{ json: {\n  input_text:           initData.input_text,\n  start_time_ms:        initData.start_time_ms,\n  input_token_estimate: initData.input_token_estimate,\n  max_iterations:       MAX_ITER\n}}];\n"
+      },
+      "id": "4ba27e77-691a-4a25-9882-cabe232c1fda",
+      "name": "Parse & Init Global State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        8912,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst init = $input.first().json;\nconst MAX  = init.max_iterations || 5;\nreturn Array.from({ length: MAX }, (_, i) => ({\n  json: {\n    iteration:            i + 1,\n    input_text:           init.input_text,\n    start_time_ms:        init.start_time_ms,\n    input_token_estimate: init.input_token_estimate\n  }\n}));\n"
+      },
+      "id": "4cefb82f-9d10-4943-97e0-8d77620b07a6",
+      "name": "Prepare Iterations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9152,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "f43aaa64-c0aa-4fe2-bebb-440148b02aa5",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        9408,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst slot  = $input.first().json;\nconst g     = $getWorkflowStaticData('global');\nconst state = g.swarm_state || {};\n\nconst PROFILES = {\n  theory:   { role: 'Theory Specialist',   expertise: 'theoretical foundations, academic definitions, conceptual models and scholarly consensus',  can_contribute: 'definitional clarity, historical context, theoretical frameworks' },\n  practice: { role: 'Practice Specialist', expertise: 'real-world applications, system implementations, case studies and practical impact',        can_contribute: 'concrete examples, implementation patterns, operational considerations' },\n  critique: { role: 'Critique Specialist', expertise: 'limitations, trade-offs, risks, failure modes and critical analysis',                       can_contribute: 'risk assessment, failure analysis, trade-off evaluation' }\n};\n\nconst activeAgent = state.current_agent || 'theory';\nconst profile     = PROFILES[activeAgent] || PROFILES.theory;\nconst prevWork    = state.accumulated_work || [];\nconst hopsLeft    = (state.max_iterations || 5) - slot.iteration;\n\nconst peers = Object.entries(PROFILES)\n  .filter(([k]) => k !== activeAgent)\n  .map(([k, v]) => `• \"${k}\" (${v.role}): contributes ${v.can_contribute}`)\n  .join('\\n');\n\nconst prevWorkText = prevWork.length > 0\n  ? prevWork.map((w, i) =>\n      `[Turn ${i + 1} — ${w.role} | level: ${w.contribution_level}]\\n` +\n      (w.response ? w.response : '(skipped — domain already covered)')\n    ).join('\\n\\n---\\n\\n')\n  : 'No prior work yet — you are the first agent in this swarm.';\n\nreturn [{ json: {\n  iteration:                    slot.iteration,\n  active_agent:                 activeAgent,\n  active_role:                  profile.role,\n  active_expertise:             profile.expertise,\n  active_can_contribute:        profile.can_contribute,\n  peer_descriptions:            peers,\n  accumulated_work:             prevWork,\n  accumulated_work_text:        prevWorkText,\n  handoff_instruction_received: state.handoff_instruction || '',\n  hops_remaining:               hopsLeft,\n  max_iterations:               state.max_iterations || 5,\n  routing_rationale:            state.routing_rationale || '',\n  dispatcher_token_estimate:    state.dispatcher_token_estimate || 0,\n  input_text:                   slot.input_text,\n  start_time_ms:                slot.start_time_ms,\n  input_token_estimate:         slot.input_token_estimate\n}}];\n"
+      },
+      "id": "787bd951-820e-4657-bd4c-d63b25094fd7",
+      "name": "Prepare Agent Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        9632,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "sl_ith",
+              "leftValue": "={{ $json.active_agent }}",
+              "rightValue": "theory",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "788087f7-1135-40c8-a39d-2b505b2ef7c4",
+      "name": "If Theory?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        9872,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "sl_ipr",
+              "leftValue": "={{ $json.active_agent }}",
+              "rightValue": "practice",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ebba78ef-7c88-406a-95bf-589b631e514c",
+      "name": "If Practice?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        10144,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language. Your \\\"response\\\" field inside the JSON must be in English.\n\nYou are the {{ $json.active_role }} in an AI research swarm.\n\n## Your expertise\n{{ $json.active_expertise }}\n\n## Other agents in this swarm and what they can contribute:\n{{ $json.peer_descriptions }}\n\n## User question:\n{{ $json.input_text }}\n\n## Work accumulated so far:\n{{ $json.accumulated_work_text }}\n\n{{ $json.handoff_instruction_received ? '## Instruction from previous agent:\\n' + $json.handoff_instruction_received : '## Note: You are first — approach from your expert perspective.' }}\n\n## Your task (Turn {{ $json.iteration }} of max {{ $json.max_iterations }}):\nDecide your contribution:\n- \"full\"    — take primary responsibility; question maps squarely to your domain\n- \"partial\" — complement existing work with your expertise\n- \"skip\"    — existing work already covers your domain thoroughly\n\n{{ $json.hops_remaining <= 0 ? 'FINAL TURN: set needs_handoff to false.' : 'After contributing, decide if a peer needs to add more. You may re-contact any specialist (including ones that already contributed) if they have more to add. Do NOT hand off to yourself (' + $json.active_agent + ').' }}\n\nOutput ONLY valid JSON:\n{\n  \"contribution_level\": \"<full|partial|skip>\",\n  \"response\": \"<100–160 words if full/partial, empty string if skip>\",\n  \"needs_handoff\": <true|false>,\n  \"handoff_target\": \"<theory|practice|critique|none>\",\n  \"handoff_instruction\": \"<specific instruction for next agent, empty string if no handoff>\"\n}"
+      },
+      "id": "0a05a4e2-f007-445a-939e-428ad8517def",
+      "name": "Specialist A – Theory",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        10144,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "df0aaf9e-411b-44c4-9363-7fe61a33672a",
+      "name": "Ollama – Theory",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        10144,
+        288
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language. Your \\\"response\\\" field inside the JSON must be in English.\n\nYou are the {{ $json.active_role }} in an AI research swarm.\n\n## Your expertise\n{{ $json.active_expertise }}\n\n## Other agents in this swarm and what they can contribute:\n{{ $json.peer_descriptions }}\n\n## User question:\n{{ $json.input_text }}\n\n## Work accumulated so far:\n{{ $json.accumulated_work_text }}\n\n{{ $json.handoff_instruction_received ? '## Instruction from previous agent:\\n' + $json.handoff_instruction_received : '## Note: You are first — approach from your expert perspective.' }}\n\n## Your task (Turn {{ $json.iteration }} of max {{ $json.max_iterations }}):\nDecide your contribution:\n- \"full\"    — take primary responsibility; question maps squarely to your domain\n- \"partial\" — complement existing work with your expertise\n- \"skip\"    — existing work already covers your domain thoroughly\n\n{{ $json.hops_remaining <= 0 ? 'FINAL TURN: set needs_handoff to false.' : 'After contributing, decide if a peer needs to add more. You may re-contact any specialist (including ones that already contributed) if they have more to add. Do NOT hand off to yourself (' + $json.active_agent + ').' }}\n\nOutput ONLY valid JSON:\n{\n  \"contribution_level\": \"<full|partial|skip>\",\n  \"response\": \"<100–160 words if full/partial, empty string if skip>\",\n  \"needs_handoff\": <true|false>,\n  \"handoff_target\": \"<theory|practice|critique|none>\",\n  \"handoff_instruction\": \"<specific instruction for next agent, empty string if no handoff>\"\n}"
+      },
+      "id": "947e4651-0168-4231-8301-ffa5a0400a7e",
+      "name": "Specialist B – Practice",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        10368,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "bc753db8-6c03-4d62-a9da-d5ea3067959a",
+      "name": "Ollama – Practice",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        10432,
+        576
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language. Your \\\"response\\\" field inside the JSON must be in English.\n\nYou are the {{ $json.active_role }} in an AI research swarm.\n\n## Your expertise\n{{ $json.active_expertise }}\n\n## Other agents in this swarm and what they can contribute:\n{{ $json.peer_descriptions }}\n\n## User question:\n{{ $json.input_text }}\n\n## Work accumulated so far:\n{{ $json.accumulated_work_text }}\n\n{{ $json.handoff_instruction_received ? '## Instruction from previous agent:\\n' + $json.handoff_instruction_received : '## Note: You are first — approach from your expert perspective.' }}\n\n## Your task (Turn {{ $json.iteration }} of max {{ $json.max_iterations }}):\nDecide your contribution:\n- \"full\"    — take primary responsibility; question maps squarely to your domain\n- \"partial\" — complement existing work with your expertise\n- \"skip\"    — existing work already covers your domain thoroughly\n\n{{ $json.hops_remaining <= 0 ? 'FINAL TURN: set needs_handoff to false.' : 'After contributing, decide if a peer needs to add more. You may re-contact any specialist (including ones that already contributed) if they have more to add. Do NOT hand off to yourself (' + $json.active_agent + ').' }}\n\nOutput ONLY valid JSON:\n{\n  \"contribution_level\": \"<full|partial|skip>\",\n  \"response\": \"<100–160 words if full/partial, empty string if skip>\",\n  \"needs_handoff\": <true|false>,\n  \"handoff_target\": \"<theory|practice|critique|none>\",\n  \"handoff_instruction\": \"<specific instruction for next agent, empty string if no handoff>\"\n}"
+      },
+      "id": "42e1bca8-54a3-4880-8840-e1b20db0738e",
+      "name": "Specialist C – Critique",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        10288,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "48490b04-631a-4412-81eb-59bfae822517",
+      "name": "Ollama – Critique",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        10288,
+        960
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst rawOutput = ($input.first().json.text || '').trim();\nconst ctx       = $('Prepare Agent Context').item.json;\nconst slot      = $('Loop Over Items').item.json;\nconst g         = $getWorkflowStaticData('global');\nconst state     = g.swarm_state || {};\n\nconst VALID_L = ['full', 'partial', 'skip'];\nconst VALID_T = ['theory', 'practice', 'critique'];\nlet fallback  = false;\nlet parsed    = { contribution_level: 'partial', response: rawOutput,\n                  needs_handoff: false, handoff_target: 'none', handoff_instruction: '' };\n\ntry {\n  const m = rawOutput.match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    const p = JSON.parse(m[0]);\n    if (p && VALID_L.includes(p.contribution_level)) { parsed = p; }\n    else { fallback = true; }\n  } else { fallback = true; }\n} catch(e) { fallback = true; }\n\nparsed.contribution_level  = VALID_L.includes(parsed.contribution_level) ? parsed.contribution_level : 'partial';\nparsed.needs_handoff       = !!parsed.needs_handoff;\nparsed.handoff_target      = VALID_T.includes(parsed.handoff_target) ? parsed.handoff_target : 'none';\nparsed.handoff_instruction = parsed.handoff_instruction || '';\n\nif (parsed.handoff_target === ctx.active_agent) {\n  parsed.handoff_target = 'none'; parsed.needs_handoff = false;\n}\nif (parsed.handoff_target === 'none') { parsed.needs_handoff = false; }\n\nconst capReached = slot.iteration >= (state.max_iterations || 5);\nconst agentDone  = !parsed.needs_handoff;\nconst isDone     = capReached || agentDone;\nconst termReason = capReached ? 'max_iterations_safety_cap' : (agentDone ? 'agent_decided_complete' : 'continue');\n\nconst newWork = [...(state.accumulated_work || []), {\n  agent:              ctx.active_agent,\n  role:               ctx.active_role,\n  iteration:          slot.iteration,\n  contribution_level: parsed.contribution_level,\n  response:           parsed.contribution_level !== 'skip' ? (parsed.response || '').trim() : ''\n}];\n\ng.swarm_state = {\n  ...state,\n  current_agent:       parsed.needs_handoff ? parsed.handoff_target : ctx.active_agent,\n  handoff_instruction: parsed.handoff_instruction,\n  accumulated_work:    newWork\n};\n\nreturn [{ json: {\n  is_done:            isDone,\n  termination_reason: termReason,\n  iteration:          slot.iteration,\n  active_agent:       ctx.active_agent,\n  contribution_level: parsed.contribution_level,\n  needs_handoff:      parsed.needs_handoff,\n  handoff_target:     parsed.handoff_target,\n  token_estimate:     Math.ceil(rawOutput.length / 4),\n  accumulated_work:   newWork,\n  routing_rationale:  state.routing_rationale || '',\n  dispatcher_token_estimate: state.dispatcher_token_estimate || 0,\n  input_text:         ctx.input_text,\n  start_time_ms:      ctx.start_time_ms,\n  input_token_estimate: ctx.input_token_estimate\n}}];\n"
+      },
+      "id": "c1cbddb4-c891-4aee-a262-da19cfea70f5",
+      "name": "Termination Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        10736,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "sl_ex1",
+              "leftValue": "={{ $json.is_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9dea6c79-ac62-4cd1-b21e-29e1e9aef474",
+      "name": "Exit Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        11024,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst s     = $input.first().json;\nconst g     = $getWorkflowStaticData('global');\nconst state = g.swarm_state || {};\nconst all   = state.accumulated_work || [];\nconst real  = all.filter(w => w.contribution_level !== 'skip' && w.response);\nconst text  = real.map(w =>\n  `--- Turn ${w.iteration}: ${w.role} [${w.contribution_level}] ---\\n${w.response}`\n).join('\\n\\n');\n\nreturn [{ json: {\n  accumulated_work:          all,\n  active_contributions:      real,\n  contributions_text:        text,\n  contributor_count:         real.length,\n  total_iterations:          s.iteration,\n  handoff_chain:             all.map(w => w.agent).join(' → '),\n  termination_reason:        s.termination_reason,\n  routing_rationale:         state.routing_rationale || '',\n  dispatcher_token_estimate: state.dispatcher_token_estimate || 0,\n  input_text:                s.input_text,\n  start_time_ms:             s.start_time_ms,\n  input_token_estimate:      s.input_token_estimate\n}}];\n"
+      },
+      "id": "2f755e4d-264d-431c-9279-5f81792a93e5",
+      "name": "Loop Collector",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11264,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language.\n\nYou are the final synthesis agent in an AI research swarm.\n\nUser question: {{ $('Record Start Time').item.json.input_text }}\n\nThe swarm ran {{ $json.total_iterations }} turn(s) via chain: {{ $json.handoff_chain }}\n\nSpecialist contributions:\n{{ $json.contributions_text }}\n\nWrite ONE unified comprehensive answer (200–250 words). Weave all contributions together seamlessly. Do not mention agents, turns or the swarm process itself."
+      },
+      "id": "2ce58b86-befb-4d2f-9df3-2f93fd7b61bb",
+      "name": "Swarm Synthesis",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        11504,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "e40dfdba-2936-4975-9341-a3ecaf2c124c",
+      "name": "Ollama – Synthesis",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        11504,
+        608
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst endMs    = Date.now();\nconst coll     = $('Loop Collector').item.json;\nconst synthTxt = ($input.first().json.text || '').trim();\nconst synthTok = Math.ceil(synthTxt.length / 4);\nconst agentTok = (coll.accumulated_work || []).reduce((s, w) => s + Math.ceil((w.response || '').length / 4), 0);\nconst dispTok  = coll.dispatcher_token_estimate || 0;\nconst inpTok   = coll.input_token_estimate || 0;\nconst latMs    = endMs - coll.start_time_ms;\n\nconst totalIterations = coll.total_iterations || 0;\nconst llmCallsActual  = totalIterations + 2;\nconst llmCallsMax     = 7;\n\nconst totalInputTok  = inpTok + dispTok;\nconst totalOutputTok = dispTok + agentTok + synthTok;\nconst totalTok       = inpTok + dispTok + agentTok + synthTok;\n\nreturn [{ json: {\n\n  user_prompt:  coll.input_text,\n  final_answer: synthTxt,\n\n  metadata: {\n    pattern:           'Swarm — Loop-Based (splitInBatches)',\n    pattern_category:  'AI-Orchestrated Multi-Agent Pattern — Decentralised Swarm',\n    run_timestamp:     new Date().toISOString(),\n    model:             'qwen2.5:14b',\n    model_provider:    'Ollama (local)',\n    latency_ms:        latMs,\n    latency_seconds:   parseFloat((latMs / 1000).toFixed(2)),\n    llm_calls_actual:  llmCallsActual,\n    llm_calls_max:     llmCallsMax,\n    token_usage: {\n      total_input_tokens:  totalInputTok,\n      total_output_tokens: totalOutputTok,\n      total_tokens:        totalTok\n    },\n    status:             'completed',\n    termination_reason: coll.termination_reason || 'unknown'\n  },\n\n  execution_trace: {\n\n    dispatcher: {\n      primary_agent_chosen:  (coll.accumulated_work && coll.accumulated_work[0]) ? coll.accumulated_work[0].agent : 'unknown',\n      routing_rationale:     coll.routing_rationale,\n      token_estimate:        dispTok\n    },\n\n    swarm_turns: (coll.accumulated_work || []).map(w => ({\n      turn:               w.iteration,\n      agent:              w.agent,\n      role:               w.role,\n      contribution_level: w.contribution_level,\n      output:             w.response || '',\n      token_estimate:     Math.ceil((w.response || '').length / 4),\n      contributed:        w.contribution_level !== 'skip'\n    })),\n\n    synthesis: {\n      output:         synthTxt,\n      token_estimate: synthTok\n    },\n\n    swarm_summary: {\n      handoff_chain:     coll.handoff_chain,\n      total_iterations:  totalIterations,\n      contributors:      coll.contributor_count,\n      exited_early:      totalIterations < 5,\n      termination_reason: coll.termination_reason\n    },\n\n    structural_properties: {\n      orchestration_type:  'decentralised — dispatcher routes first agent; agents self-direct all subsequent turns',\n      peer_awareness:      'all agents know peer specialties before each turn',\n      revisit_policy:      'any agent can be re-contacted any number of times — only self-referral blocked',\n      contribution_model:  'full | partial | skip, re-evaluated every turn',\n      termination_logic:   'dual: agent outputs needs_handoff=false (AI-driven) OR iteration cap reached (code-enforced)',\n      loop_mechanism:      'splitInBatches (Loop Over Items) with loop-back edge from Exit Gate',\n      state_passing:       '$getWorkflowStaticData(global) carries accumulated_work, current_agent and handoff_instruction between iterations',\n      max_iterations:      5,\n      actual_iterations:   totalIterations,\n      pattern_category:    'AI-Orchestrated Multi-Agent Pattern — Decentralised Swarm'\n    },\n\n    llm_limitation: 'n8n Ollama node (lmChatOllama typeVersion 1) does not expose a temperature parameter. Temperature is governed by the Ollama server default (typically 0.8). To override it, set the value in the Ollama Modelfile or replace the native Ollama node with an HTTP Request node and pass temperature in the request body.'\n  }\n\n}}];\n"
+      },
+      "id": "ad69e2d0-b7ed-4879-b5d0-4c0df5404b77",
+      "name": "Compute Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        11792,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "8fea8a85-fa9c-4bd2-8fdd-5ac84403b967",
+      "name": "Respond – Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        11984,
+        432
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Record Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Start Time": {
+      "main": [
+        [
+          {
+            "node": "Dispatcher – Router",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Dispatcher": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Dispatcher – Router",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dispatcher – Router": {
+      "main": [
+        [
+          {
+            "node": "Parse & Init Global State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse & Init Global State": {
+      "main": [
+        [
+          {
+            "node": "Prepare Iterations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Iterations": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Prepare Agent Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Agent Context": {
+      "main": [
+        [
+          {
+            "node": "If Theory?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Theory?": {
+      "main": [
+        [
+          {
+            "node": "Specialist A – Theory",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Practice?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Theory": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Specialist A – Theory",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Specialist A – Theory": {
+      "main": [
+        [
+          {
+            "node": "Termination Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Practice?": {
+      "main": [
+        [
+          {
+            "node": "Specialist B – Practice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Specialist C – Critique",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Practice": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Specialist B – Practice",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Specialist B – Practice": {
+      "main": [
+        [
+          {
+            "node": "Termination Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Critique": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Specialist C – Critique",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Specialist C – Critique": {
+      "main": [
+        [
+          {
+            "node": "Termination Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Termination Check": {
+      "main": [
+        [
+          {
+            "node": "Exit Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exit Gate": {
+      "main": [
+        [
+          {
+            "node": "Loop Collector",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Collector": {
+      "main": [
+        [
+          {
+            "node": "Swarm Synthesis",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Synthesis": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Swarm Synthesis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Swarm Synthesis": {
+      "main": [
+        [
+          {
+            "node": "Compute Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Metrics": {
+      "main": [
+        [
+          {
+            "node": "Respond – Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0d72ee5a-d43e-4069-8f13-ae927c155901",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3b08f72cfb80f155cac1550cf0e5e2633a2c06cfaacd1f2ea62b126dcabcb29f"
+  },
+  "id": "HIR4q2H4736HlqOG",
+  "tags": []
+}

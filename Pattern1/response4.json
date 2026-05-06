@@ -1,0 +1,41 @@
+[
+  {
+    "user_prompt": "List the 5 most populated cities",
+    "final_answer": "The five most populated cities in the world as of recent data are Tokyo, Japan; Delhi, India; Shanghai, China; São Paulo, Brazil; and Cairo, Egypt. Note that population numbers and rankings can change over time due to rapid urban growth and migration patterns.",
+    "metadata": {
+      "pattern": "Sequential Pipeline",
+      "pattern_category": "Deterministic Workflow Pattern",
+      "run_timestamp": "2026-04-26T18:43:00.131Z",
+      "model": "qwen2.5:14b",
+      "model_provider": "Ollama (local)",
+      "temperature": 0.7,
+      "latency_ms": 53378,
+      "latency_seconds": 53.38,
+      "llm_calls_actual": 3,
+      "llm_calls_max": 3,
+      "token_usage": {
+        "total_input_tokens": 75,
+        "total_output_tokens": 205,
+        "total_tokens": 213
+      },
+      "status": "completed",
+      "termination_reason": "all_stages_completed"
+    },
+    "execution_trace": {
+      "gate_decision": "PASS",
+      "gate_logic": "Stage 1 token estimate >= 30 AND output != INSUFFICIENT_INPUT",
+      "stage1_token_estimate": 67,
+      "stage_outputs": {
+        "stage1_answer": "The five most populated cities in the world as of recent data are:\n\n1. Tokyo, Japan\n2. Delhi, India\n3. Shanghai, China\n4. São Paulo, Brazil\n5. Cairo, Egypt\n\nNote: Population numbers and rankings can change over time due to rapid urban growth and migration patterns.",
+        "stage2_calculator": "NO_CALCULATIONS_REQUIRED\n\nThe five most populated cities in the world as of recent data are:\n\n1. Tokyo, Japan\n2. Delhi, India\n3. Shanghai, China\n4. São Paulo, Brazil\n5. Cairo, Egypt\n\nNote: Population numbers and rankings can change over time due to rapid urban growth and migration patterns.",
+        "stage3_final": "The five most populated cities in the world as of recent data are Tokyo, Japan; Delhi, India; Shanghai, China; São Paulo, Brazil; and Cairo, Egypt. Note that population numbers and rankings can change over time due to rapid urban growth and migration patterns."
+      },
+      "quality_checks": {
+        "stage1_uses_bullets": false,
+        "stage2_performed_calculations": false,
+        "stage3_word_count": 43,
+        "all_stages_completed": true
+      }
+    }
+  }
+]

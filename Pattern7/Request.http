@@ -1,0 +1,32 @@
+###
+POST http://localhost:5678/webhook-test/react-pattern
+Content-Type: application/json
+
+{
+  "prompt": "Look up 'COVID-19 economic impact' and summarise the key effects on household income. Then calculate how much more expensive a $1000 monthly basket becomes after 2 years of 8.5% annual inflation. Also analyse the real value of a $1000 monthly income after those 2 years."
+}
+
+### Error
+POST http://localhost:5678/webhook-test/react-pattern
+Content-Type: application/json
+
+{
+  "prompt": "List the Baltic countries along with their capitals and populations. Calculate the total combined population across all three"
+}
+
+### All components
+POST http://localhost:5678/webhook-test/react-pattern
+Content-Type: application/json
+
+{
+  "prompt": "Look up the approximate flight distance between Los Angeles and Munich. Then calculate how long a direct flight takes if the plane cruises at 900 km/h. Finally, if today is 2026-04-29 and the meeting is in 5 days, what exact date is the meeting?"
+}
+
+### No tool usage
+POST http://localhost:5678/webhook-test/react-pattern
+Content-Type: application/json
+
+{
+  "prompt": "Hey, what is your name?"
+}
+

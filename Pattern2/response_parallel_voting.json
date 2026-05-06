@@ -1,0 +1,108 @@
+[
+  {
+    "user_prompt": "List the Baltic countries along with their capitals and populations. Calculate the total combined population across all three",
+    "final_answer": "The Baltic countries are Estonia, Latvia, and Lithuania, each known for its rich history and culture. The capital of Estonia is Tallinn, with a population of approximately 438,000 people as of recent estimates. Riga serves as the capital of Latvia, where around 641,000 inhabitants reside. Vilnius is the bustling heart of Lithuania, home to roughly 542,000 residents. Adding up these populations gives a total combined population for all three Baltic countries of about 1,621,000 people.\n\nIt's important to note that population figures can fluctuate due to various factors such as migration and birth rates, so it’s always wise to consult the most recent official statistics for precise numbers.",
+    "metadata": {
+      "pattern": "Parallel Voting",
+      "pattern_category": "Parallel Decomposition Pattern",
+      "run_timestamp": "2026-04-26T19:37:13.581Z",
+      "model": "qwen2.5:14b",
+      "model_provider": "Ollama (local)",
+      "temperature": 0.7,
+      "latency_ms": 69261,
+      "latency_seconds": 69.26,
+      "llm_calls_actual": 3,
+      "llm_calls_max": 3,
+      "token_usage": {
+        "total_input_tokens": 32,
+        "total_output_tokens": 438,
+        "total_tokens": 470
+      },
+      "status": "completed",
+      "termination_reason": "all_votes_collected_winner_selected"
+    },
+    "execution_trace": {
+      "vote_agents": {
+        "vote_1": {
+          "label": "Vote Agent 1 (Run 1 of 3)",
+          "output": "The Baltic countries are Estonia, Latvia, and Lithuania, each known for its rich history and culture. The capital of Estonia is Tallinn, with a population of approximately 438,000 people as of recent estimates. Riga serves as the capital of Latvia, where around 641,000 inhabitants reside. Vilnius is the bustling heart of Lithuania, home to roughly 542,000 residents. Adding up these populations gives a total combined population for all three Baltic countries of about 1,621,000 people.\n\nIt's important to note that population figures can fluctuate due to various factors such as migration and birth rates, so it’s always wise to consult the most recent official statistics for precise numbers.",
+          "tokens": 174,
+          "word_count": 108,
+          "quality_score": 10,
+          "score_breakdown": {
+            "lengthScore": 3,
+            "sentenceScore": 3,
+            "toneScore": 2,
+            "uniqueScore": 2
+          },
+          "is_winner": true
+        },
+        "vote_2": {
+          "label": "Vote Agent 2 (Run 2 of 3)",
+          "output": "The Baltic countries are Estonia, Latvia, and Lithuania. Their respective capitals and approximate populations as of recent estimates are: Tallinn, the capital of Estonia, has a population of around 430,000; Riga, the capital of Latvia, has a population of approximately 625,000; Vilnius, the capital of Lithuania, is home to roughly 551,000 people. Adding these populations together gives a total combined population of about 1.6 million for the capitals alone. The entire populations of Estonia, Latvia, and Lithuania are significantly larger but the question specifically asked for the sum of their respective capital cities' populations.",
+          "tokens": 161,
+          "word_count": 94,
+          "quality_score": 9,
+          "score_breakdown": {
+            "lengthScore": 3,
+            "sentenceScore": 3,
+            "toneScore": 2,
+            "uniqueScore": 1
+          },
+          "is_winner": false
+        },
+        "vote_3": {
+          "label": "Vote Agent 3 (Run 3 of 3)",
+          "output": "The Baltic countries are Estonia, Latvia, and Lithuania. The capital of Estonia is Tallinn, which has a population of around 436,000 people. Riga, the capital of Latvia, is home to approximately 658,000 residents. Vilnius serves as the capital of Lithuania, with a population of about 542,000. Adding these populations together gives us a combined total of roughly 1,636,000 people across all three countries.",
+          "tokens": 103,
+          "word_count": 63,
+          "quality_score": 8,
+          "score_breakdown": {
+            "lengthScore": 1,
+            "sentenceScore": 3,
+            "toneScore": 2,
+            "uniqueScore": 2
+          },
+          "is_winner": false
+        }
+      },
+      "voting_decision": {
+        "winner_agent": "Vote Agent 1 (Run 1 of 3)",
+        "winner_run": 1,
+        "winner_quality_score": 10,
+        "score_spread": 2,
+        "score_spread_label": "LOW - high agreement between agents",
+        "all_scores": [
+          {
+            "agent": "Vote Agent 1 (Run 1 of 3)",
+            "score": 10
+          },
+          {
+            "agent": "Vote Agent 2 (Run 2 of 3)",
+            "score": 9
+          },
+          {
+            "agent": "Vote Agent 3 (Run 3 of 3)",
+            "score": 8
+          }
+        ],
+        "selection_method": "deterministic scoring (length + sentences + tone + lexical diversity) - zero extra LLM cost",
+        "tie_break_used": false
+      },
+      "pipeline_integrity": {
+        "all_agents_completed": true,
+        "agents_completed": 3,
+        "agents_failed": 0,
+        "merge_waited_for_all": true
+      },
+      "structural_properties": {
+        "orchestration_type": "parallel_fanout_then_vote",
+        "vote_agents_count": 3,
+        "vote_agents_run_in_parallel": true,
+        "aggregation_strategy": "deterministic quality scoring (code node - zero extra LLM call)",
+        "merger_type": "n8n_merge_node_3_inputs",
+        "llm_calls_for_aggregation": 0
+      }
+    }
+  }
+]

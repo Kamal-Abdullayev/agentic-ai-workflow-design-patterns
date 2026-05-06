@@ -1,0 +1,392 @@
+{
+  "name": "Pattern-9 – Human in the Loop",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "hitl-pattern",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "06fd284e-7854-4d1c-bdc9-75b5eb129d76",
+      "name": "Webhook – HITL Start",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -7088,
+        1840
+      ],
+      "webhookId": "e4df15ed-f6aa-41fd-9391-8b5797c2bf26"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "8806560c-71d1-4e4f-a431-01f887bd2a34",
+              "name": "start_time_ms",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            },
+            {
+              "id": "2fb0e31e-fb22-4f03-b999-beeb5c1e477f",
+              "name": "input_text",
+              "value": "={{ $json.body.prompt ?? $json.prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "428d1a6c-0e98-4656-92e3-27f40207a9dd",
+              "name": "input_token_estimate",
+              "value": "={{ Math.ceil(($json.body.prompt ?? $json.prompt ?? '').split(' ').length * 1.33) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d0d036e6-0663-4386-a5ae-166ba2bee14d",
+      "name": "Record Start Time",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -6848,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst item = $input.first().json;\nreturn [{ json: {\n  input_text:           item.input_text,\n  start_time_ms:        item.start_time_ms,\n  input_token_estimate: item.input_token_estimate,\n  iteration:            1,\n  max_revisions:        3,\n  current_draft:        '',\n  human_feedback:       '',\n  review_history:       [],\n  is_approved:          false\n} }];\n"
+      },
+      "id": "79f9f214-5d1d-467b-8305-c7fbef2986c5",
+      "name": "Init HITL State",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6608,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst state = $input.first().json;\nlet promptText;\nif (state.iteration === 1) {\n  promptText = `You are a helpful assistant. Complete the following task as accurately and thoroughly as possible.\\n\\nTask: ${state.input_text}`;\n} else {\n  promptText = `You are a helpful assistant. A human reviewer has rejected your previous response and provided feedback. Revise your response to fully address all feedback.\\n\\nOriginal task:\\n${state.input_text}\\n\\nYour previous response:\\n${state.current_draft}\\n\\nReviewer feedback:\\n${state.human_feedback}\\n\\nProvide an improved response that fully addresses the feedback.`;\n}\nreturn [{ json: { ...state, prompt_text: promptText } }];\n"
+      },
+      "id": "de2a3589-76a9-420b-8e3a-50d73c40ac82",
+      "name": "Format Agent Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -6368,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt_text }}"
+      },
+      "id": "7fa24c9b-c393-4d94-9538-62d90b133ef3",
+      "name": "Generator Agent",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        -6160,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "1e516c86-e2f6-40a7-9999-745d6996f0b1",
+      "name": "Ollama – qwen2.5:14b",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -6160,
+        2080
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst draft = ($input.first().json.text || '').trim();\nconst state = $('Format Agent Prompt').first().json;\nconst fullResumeUrl = $execution.resumeUrl;\nconst pathMatch = fullResumeUrl.match(/\\/webhook-waiting\\/.+/);\nconst resumeUrl = pathMatch ? 'http://localhost:5678' + pathMatch[0] : fullResumeUrl;\nreturn [{ json: {\n  ...state,\n  current_draft: draft,\n  status:        'pending_review',\n  draft,\n  resume_url:    resumeUrl,\n  instructions:  'POST to resume_url with { \"decision\": \"approve\" } or { \"decision\": \"reject\", \"feedback\": \"your feedback\" }'\n} }];\n"
+      },
+      "id": "5a422255-a0f2-4706-a74a-10c770112dd9",
+      "name": "Prepare Review Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5840,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "c84e7598-db8d-4c4c-95ae-57b69a9ff5e1",
+      "name": "Respond – Pending Review",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -5632,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "id": "57d17108-548f-4c7e-bfcf-afa22f5af2ff",
+      "name": "Wait – Human Review",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        -5408,
+        1840
+      ],
+      "webhookId": "8362474e-5a3b-4b9f-9b10-b519731f14d4"
+    },
+    {
+      "parameters": {
+        "jsCode": "const item   = $input.first().json;\nconst prev   = $('Prepare Review Response').first().json;\nconst body   = item.body || item;\nconst decision = (body.decision || 'reject').toLowerCase().trim();\nconst feedback = (body.feedback || '').trim();\nconst isApproved  = decision === 'approve';\n\n// Capture the draft that was reviewed so execution_trace can reference raw LLM output\nconst draftSnapshot          = prev.current_draft || '';\nconst draftOutputTokenEstimate = Math.ceil(draftSnapshot.length / 4);\n\n// Per-revision input token estimate:\n//   Revision 1 — only the original task prompt\n//   Revision 2+ — original task + previous draft + human feedback + ~50 system overhead\nconst isFirstRevision = prev.iteration === 1;\nconst promptInputTokenEstimate = isFirstRevision\n  ? prev.input_token_estimate\n  : prev.input_token_estimate\n    + draftOutputTokenEstimate\n    + Math.ceil(feedback.length / 4)\n    + 50;\n\nconst reviewEntry = {\n  iteration:                    prev.iteration,\n  decision,\n  feedback,\n  draft_snapshot:               draftSnapshot,\n  draft_output_token_estimate:  draftOutputTokenEstimate,\n  prompt_input_token_estimate:  promptInputTokenEstimate\n};\n\nconst reviewHistory = [...(prev.review_history || []), reviewEntry];\nconst maxReached    = !isApproved && prev.iteration >= prev.max_revisions;\nconst isDone        = isApproved || maxReached;\n\nlet terminationReason = 'continue';\nif (isApproved)      terminationReason = 'human_approved';\nelse if (maxReached) terminationReason = 'max_revisions_reached';\n\nreturn [{ json: {\n  input_text:           prev.input_text,\n  start_time_ms:        prev.start_time_ms,\n  input_token_estimate: prev.input_token_estimate,\n  iteration:            prev.iteration + 1,\n  max_revisions:        prev.max_revisions,\n  current_draft:        prev.current_draft,\n  human_feedback:       feedback,\n  review_history:       reviewHistory,\n  is_approved:          isApproved,\n  current_iteration:    prev.iteration,\n  human_decision:       decision,\n  max_reached:          maxReached,\n  is_done:              isDone,\n  termination_reason:   terminationReason\n} }];"
+      },
+      "id": "cb9dcf78-ac80-40fb-922f-683fb28384c3",
+      "name": "Parse Human Decision",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -5168,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f5ddf37c-ee57-418f-a5ba-96dd1d61335c",
+              "leftValue": "={{ $json.is_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "525fc5cb-928f-4384-8216-b782651a09e1",
+      "name": "Exit Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -4928,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data   = $input.first().json;\nconst endMs  = Date.now();\nconst latMs  = endMs - data.start_time_ms;\nconst latSec = parseFloat((latMs / 1000).toFixed(2));\n\nconst history = data.review_history || [];\n\n// ── Per-revision accurate token accounting ────────────────────────────────────\n// Input  : prompt_input_token_estimate stored per revision in Parse Human Decision\n//          (revision 1 = initial prompt words × 1.33;\n//           revision 2+ = initial + prev_draft + feedback + 50 overhead)\n// Output : draft_output_token_estimate = draft chars / 4\n// NOTE: lmChatOllama does not expose native Ollama token counts.\n// These are character-based estimates. See metadata.limitations.\nconst totalInputTokens  = history.reduce((s, r) => s + (r.prompt_input_token_estimate || 0), 0);\nconst totalOutputTokens = history.reduce((s, r) => s + (r.draft_output_token_estimate  || 0), 0);\nconst totalTokens       = totalInputTokens + totalOutputTokens;\n\n// ── Per-revision execution_trace entries ─────────────────────────────────────\nconst revisionTrace = {};\nhistory.forEach((entry, idx) => {\n  const inTok  = entry.prompt_input_token_estimate || 0;\n  const outTok = entry.draft_output_token_estimate  || 0;\n  revisionTrace[`revision_${idx + 1}`] = {\n    step: idx + 1,\n    llm_call: {\n      raw_output:    entry.draft_snapshot || '(not captured)',\n      input_tokens:  inTok,\n      output_tokens: outTok,\n      total_tokens:  inTok + outTok,\n      latency_ms:    'n/a'   // n8n code nodes do not expose per-node timing\n    },\n    human_decision: entry.decision,\n    human_feedback: entry.feedback || '',\n    is_approved:    entry.decision === 'approve'\n  };\n});\n\n// ── Standard output ───────────────────────────────────────────────────────────\nreturn [{ json: {\n\n  user_prompt:  data.input_text,\n  final_answer: data.current_draft,\n\n  metadata: {\n    pattern:           'Human in the Loop',\n    pattern_category:  'Augmentation and Oversight Pattern',\n    run_timestamp:     new Date().toISOString(),\n    model:             'qwen2.5:14b',\n    model_provider:    'Ollama (local)',\n    latency_ms:        latMs,\n    latency_seconds:   latSec,\n    llm_calls_actual:  history.length,\n    llm_calls_max:     data.max_revisions,\n    token_usage: {\n      total_input_tokens:  totalInputTokens,\n      total_output_tokens: totalOutputTokens,\n      total_tokens:        totalTokens\n    },\n    status:             'completed',\n    termination_reason: data.termination_reason,\n\n    // Moved from execution_trace — limitations are metadata, not execution data\n    limitations: [\n      \"Token counts are character-based estimates (output: chars/4; input: words×1.33 + context growth). \" +\n        \"lmChatOllama does not expose native Ollama token counts.\",\n      \"per-revision latency_ms is 'n/a' — n8n code nodes do not expose individual node timing; \" +\n        \"only total wall-clock latency_ms is available.\",\n      \"The system prompt uses a generic helpful-assistant persona with no format constraints or \" +\n        \"domain restriction — response style may vary between revisions.\"\n    ],\n\n    // Moved from execution_trace — static schema documentation, not runtime data\n    structural_properties: {\n      pattern_category:     'Augmentation and Oversight Pattern',\n      orchestration_type:   'Human-in-the-loop oversight with AI revision cycle',\n      checkpoint_mechanism: 'n8n Wait node (webhook resume)',\n      resume_endpoint:      '/webhook-waiting/{executionId}?signature={token}',\n      state_passing:        '$json item data piped through nodes; recovered via $() after Wait',\n      termination_conditions: [\n        \"human decision == 'approve'  →  human_approved\",\n        \"iteration >= max_revisions   →  max_revisions_reached (forced close)\"\n      ],\n      agent_count:   1,\n      max_revisions: data.max_revisions\n    }\n  },\n\n  // execution_trace: runtime data only — no static docs, no duplicated drafts\n  execution_trace: {\n    ...revisionTrace,\n\n    hitl_summary: {\n      revision_cycles:         history.length,\n      approval_iteration:      data.current_iteration,\n      max_revisions:           data.max_revisions,\n      human_approved:          data.is_approved,\n      max_revisions_triggered: data.max_reached,\n      exited_early:            data.current_iteration < data.max_revisions,\n\n      // Lean audit log — no draft_snapshot (already in revision_N.llm_call.raw_output)\n      review_log: history.map(r => ({\n        iteration: r.iteration,\n        decision:  r.decision,\n        feedback:  r.feedback || ''\n      }))\n    }\n  }\n\n} }];"
+      },
+      "id": "7df9791b-1948-4528-b502-a76448103ba3",
+      "name": "Compute HITL Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4688,
+        1600
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json, null, 2) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "d228763a-ad0e-4c6c-81e0-9c881af16413",
+      "name": "Respond – Final",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -4448,
+        1600
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook – HITL Start": {
+      "main": [
+        [
+          {
+            "node": "Record Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Start Time": {
+      "main": [
+        [
+          {
+            "node": "Init HITL State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init HITL State": {
+      "main": [
+        [
+          {
+            "node": "Format Agent Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Agent Prompt": {
+      "main": [
+        [
+          {
+            "node": "Generator Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generator Agent": {
+      "main": [
+        [
+          {
+            "node": "Prepare Review Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – qwen2.5:14b": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Generator Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Review Response": {
+      "main": [
+        [
+          {
+            "node": "Respond – Pending Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond – Pending Review": {
+      "main": [
+        [
+          {
+            "node": "Wait – Human Review",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait – Human Review": {
+      "main": [
+        [
+          {
+            "node": "Parse Human Decision",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Human Decision": {
+      "main": [
+        [
+          {
+            "node": "Exit Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exit Gate": {
+      "main": [
+        [
+          {
+            "node": "Compute HITL Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Agent Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute HITL Metrics": {
+      "main": [
+        [
+          {
+            "node": "Respond – Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "d312ae6d-7df7-4049-a159-45ac8e054eef",
+  "meta": {
+    "instanceId": "3b08f72cfb80f155cac1550cf0e5e2633a2c06cfaacd1f2ea62b126dcabcb29f"
+  },
+  "id": "J6yYAHHLOaFI8mL4",
+  "tags": []
+}

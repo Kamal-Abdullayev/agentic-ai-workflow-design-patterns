@@ -1,0 +1,504 @@
+{
+  "name": "Pattern 2: Parallel Sectioning",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "parallel-sectioning",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "2574294a-0306-4d27-9315-9deb6a472cef",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        12480,
+        5520
+      ],
+      "webhookId": "b1c2d3e4-f5a6-7890-bcde-f12345678901"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s_ts1",
+              "name": "start_time_ms",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "19683118-0d00-4188-be2d-b1546118a098",
+      "name": "Record Start Time",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        12720,
+        5520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// ── Region-Based Sectioning — deterministic split by region, zero AI involvement ──\nconst webhookBody = $('Webhook Trigger').item.json.body;\n\nconst rows = Array.isArray(webhookBody.rows) ? webhookBody.rows : [];\nconst task = webhookBody.analysis_task || 'Analyse the provided data and report key findings, patterns and anomalies.';\n\nif (rows.length === 0) {\n  throw new Error('No rows found. Send { \"rows\": [...], \"analysis_task\": \"...\" } in the request body.');\n}\n\nconst slices = { North: [], South: [], East: [], West: [] };\nfor (const row of rows) {\n  const r = row.region || row.Region || '';\n  if (slices[r] !== undefined) slices[r].push(row);\n}\n\nfunction rowsToText(slice, regionName) {\n  if (slice.length === 0) return '[No data available for ' + regionName + ' region]';\n  return slice.map((row, i) => {\n    if (typeof row === 'object' && row !== null) {\n      return 'Row ' + (i + 1) + ': ' + Object.entries(row).map(([k, v]) => k + '=' + v).join(', ');\n    }\n    return 'Row ' + (i + 1) + ': ' + row;\n  }).join('\\n');\n}\n\nconst t1 = rowsToText(slices.North, 'North');\nconst t2 = rowsToText(slices.South, 'South');\nconst t3 = rowsToText(slices.East,  'East');\nconst t4 = rowsToText(slices.West,  'West');\n\nconst allRowsText = rows.map((row, i) => {\n  return 'Row ' + (i + 1) + ': ' + Object.entries(row).map(([k, v]) => k + '=' + v).join(', ');\n}).join('\\n');\n\nfunction buildPrompt(regionName, dataText, rowCount) {\n  const availability = rowCount === 0\n    ? 'IMPORTANT: There is NO data for this region. State clearly that no data was available and do not invent findings.'\n    : rowCount === 1\n    ? 'IMPORTANT: There is only ONE row of data for this region. Base your analysis solely on that single row. Do not extrapolate trends from a single data point — note the limited data explicitly in your response.'\n    : 'Analyse all ' + rowCount + ' rows provided for this region.';\n\n  return 'LANGUAGE RULE: You MUST respond in English only. Do not use any other language under any circumstances, regardless of the language of the input data.\\n'\n    + 'You are a regional data analyst.\\n'\n    + 'Your task: ' + task + '\\n\\n'\n    + 'You are responsible for the ' + regionName + ' region ONLY. Do NOT analyse or speculate about other regions.\\n'\n    + availability + '\\n\\n'\n    + 'Write in clear prose. Be specific and concise. 100-150 words.\\n\\n'\n    + 'Your assigned data (' + regionName + ' region):\\n'\n    + dataText;\n}\n\nconst prompt_north = buildPrompt('North', t1, slices.North.length);\nconst prompt_south = buildPrompt('South', t2, slices.South.length);\nconst prompt_east  = buildPrompt('East',  t3, slices.East.length);\nconst prompt_west  = buildPrompt('West',  t4, slices.West.length);\n\nconst inputTokenEstimate = Math.ceil(\n  (task.length + t1.length + t2.length + t3.length + t4.length) / 4\n);\n\nreturn [{\n  json: {\n    start_time_ms:        $('Record Start Time').item.json.start_time_ms,\n    analysis_task:        task,\n    total_rows:           rows.length,\n    split_method:         'region_based (North / South / East / West)',\n    north_count:          slices.North.length,\n    south_count:          slices.South.length,\n    east_count:           slices.East.length,\n    west_count:           slices.West.length,\n    north_raw:            t1,\n    south_raw:            t2,\n    east_raw:             t3,\n    west_raw:             t4,\n    all_rows_text:        allRowsText,\n    prompt_north:         prompt_north,\n    prompt_south:         prompt_south,\n    prompt_east:          prompt_east,\n    prompt_west:          prompt_west,\n    input_token_estimate: inputTokenEstimate\n  }\n}];\n"
+      },
+      "id": "ca247e45-7cba-425a-b65e-d2b4f2354f76",
+      "name": "Hardcoded Region Split",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        12976,
+        5520
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt_north }}"
+      },
+      "id": "2995ac8a-a389-4fe2-ad45-66047211f4f8",
+      "name": "Agent - North Region",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        13456,
+        5040
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "f5aa11e8-36c0-4f6d-aa98-b5ffbd3d6170",
+      "name": "Ollama - North",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        13456,
+        5200
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt_south }}"
+      },
+      "id": "4b270725-090f-4224-949e-756a80df9077",
+      "name": "Agent - South Region",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        13456,
+        5360
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "4e0c9c64-f78c-4497-b5b0-8dd0dc0bc381",
+      "name": "Ollama - South",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        13456,
+        5520
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt_east }}"
+      },
+      "id": "25f1f780-bd1b-4c91-81f3-5dc498fd4771",
+      "name": "Agent - East Region",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        13456,
+        5680
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "bc877f89-5ad4-4abb-a13e-e502ba1bac74",
+      "name": "Ollama - East",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        13456,
+        5840
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt_west }}"
+      },
+      "id": "46dfdf77-a7c6-4aae-bce7-a060d4620353",
+      "name": "Agent - West Region",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        13456,
+        6000
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "480663d6-ddae-4c69-9f2c-3e9d7c8d3444",
+      "name": "Ollama - West",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        13456,
+        6160
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "id": "3801c088-1545-49c6-a65a-90f91919866f",
+      "name": "Merge Regions",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        14016,
+        5520
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\nconst split = $('Hardcoded Region Split').item.json;\n\nconst north = (items[0]?.json?.text || items[0]?.json?.output || '').trim();\nconst south = (items[1]?.json?.text || items[1]?.json?.output || '').trim();\nconst east  = (items[2]?.json?.text || items[2]?.json?.output || '').trim();\nconst west  = (items[3]?.json?.text || items[3]?.json?.output || '').trim();\n\nreturn [{ json: {\n  north_analysis: north,\n  south_analysis: south,\n  east_analysis:  east,\n  west_analysis:  west,\n  all_rows_text:  split.all_rows_text\n}}];\n"
+      },
+      "id": "089046e7-68be-4a64-b61d-a5961a08d2c2",
+      "name": "Region Aggregator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14224,
+        5520
+      ]
+    },
+    {
+      "parameters": {
+        "chunkingMode": "advanced",
+        "options": {
+          "summarizationMethodAndPrompts": {
+            "values": {
+              "summarizationMethod": "stuff",
+              "prompt": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language under any circumstances, regardless of the language used in the regional findings below.\n\nYou are a Synthesis Agent. Four regional analysts each examined a separate region (North, South, East, West) of a dataset. Combine their findings into one coherent, complete analysis report.\n\nCRITICAL RULE: Before stating any fact (month, product, sales number, region), verify it against the Ground Truth Data below. If an analyst's output contradicts the ground truth, trust the ground truth and correct it silently. Never invent facts not present in the ground truth. If a region had no data, acknowledge that naturally without dwelling on it.\n\nRules:\n- Cover findings from all four regions\n- Highlight cross-regional patterns and contrasts\n- Note anomalies and outliers mentioned by analysts\n- If a region had zero or one row, reflect that naturally in the report\n- Write in clear prose only — no bullet points, no markdown headers\n- Do not mention 'Section', 'Agent' or region labels as headings in your output\n- Return only the final synthesis report\n\n--- Ground Truth Data (source of record) ---\n{{ $json.all_rows_text }}\n\n--- Analysis task ---\n{{ $('Webhook Trigger').item.json.body.analysis_task }}\n\n--- North region findings ---\n{{ $json.north_analysis }}\n\n--- South region findings ---\n{{ $json.south_analysis }}\n\n--- East region findings ---\n{{ $json.east_analysis }}\n\n--- West region findings ---\n{{ $json.west_analysis }}"
+            }
+          }
+        }
+      },
+      "id": "2080fc6c-834d-4ba5-b594-951eb5e1d228",
+      "name": "Summarization",
+      "type": "@n8n/n8n-nodes-langchain.chainSummarization",
+      "typeVersion": 2.1,
+      "position": [
+        14464,
+        5520
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "76558c2f-a6db-48cf-8075-735537bf7cf8",
+      "name": "Ollama - Synthesis",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        14464,
+        5760
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst split   = $('Hardcoded Region Split').item.json;\nconst agg     = $('Region Aggregator').item.json;\nconst startMs = split.start_time_ms;\nconst task    = split.analysis_task;\n\nconst northA = agg.north_analysis || '';\nconst southA = agg.south_analysis || '';\nconst eastA  = agg.east_analysis  || '';\nconst westA  = agg.west_analysis  || '';\n\nconst rawOutput   = $input.first().json.output;\nconst finalAnswer = (rawOutput && typeof rawOutput === 'object' && rawOutput.text)\n  ? rawOutput.text : (typeof rawOutput === 'string' ? rawOutput : '');\n\nconst endMs    = Date.now();\nconst latMs    = endMs - startMs;\nconst inputTok = split.input_token_estimate || 0;\nconst northTok = Math.ceil(northA.length / 4);\nconst southTok = Math.ceil(southA.length / 4);\nconst eastTok  = Math.ceil(eastA.length  / 4);\nconst westTok  = Math.ceil(westA.length  / 4);\nconst finalTok = Math.ceil(finalAnswer.length / 4);\nconst totalOut = northTok + southTok + eastTok + westTok + finalTok;\n\nreturn [{ json: {\n  analysis_task: task,\n  final_answer:  finalAnswer,\n  metadata: {\n    pattern:           'Parallel Sectioning',\n    pattern_category:  'Parallel Decomposition Pattern',\n    run_timestamp:     new Date().toISOString(),\n    model:             'qwen2.5:14b',\n    model_provider:    'Ollama (local)',\n    latency_ms:        latMs,\n    latency_seconds:   parseFloat((latMs / 1000).toFixed(2)),\n    llm_calls_actual:  5,\n    llm_calls_max:     5,\n    token_usage: {\n      total_input_tokens:  inputTok,\n      total_output_tokens: totalOut,\n      total_tokens:        inputTok + totalOut\n    },\n    status:             'completed',\n    termination_reason: 'all_regions_merged_and_synthesised'\n  },\n  execution_trace: {\n    split_strategy: {\n      method:       'region_based_partition (hardcoded - zero AI involvement)',\n      total_rows:    split.total_rows,\n      regions:       ['North', 'South', 'East', 'West'],\n      north_count:   split.north_count,\n      south_count:   split.south_count,\n      east_count:    split.east_count,\n      west_count:    split.west_count\n    },\n    parallel_sections: {\n      north: { data_slice: split.north_raw, row_count: split.north_count, output: northA, tokens: northTok },\n      south: { data_slice: split.south_raw, row_count: split.south_count, output: southA, tokens: southTok },\n      east:  { data_slice: split.east_raw,  row_count: split.east_count,  output: eastA,  tokens: eastTok  },\n      west:  { data_slice: split.west_raw,  row_count: split.west_count,  output: westA,  tokens: westTok  }\n    },\n    synthesis: {\n      method:                'stuff (chainSummarization) with ground truth anchor',\n      ground_truth_injected:  true,\n      output:                finalAnswer,\n      tokens:                finalTok\n    },\n    structural_properties: {\n      orchestration_type:       'parallel_fanout_then_merge',\n      sections_count:            4,\n      sections_run_in_parallel:  true,\n      split_node_type:           'code_node_region_based_hardcoded',\n      merger_type:               'n8n_merge_node_4_inputs',\n      synthesis_node_type:       'chainSummarization_stuff',\n      ai_in_orchestration:       false\n    }\n  }\n}}];\n"
+      },
+      "id": "8b6931c4-d7a3-41e0-898d-dd51d384dc13",
+      "name": "Build Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14784,
+        5520
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "590d7d54-82cf-45bc-9285-34d3858080bb",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        15024,
+        5520
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Record Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Start Time": {
+      "main": [
+        [
+          {
+            "node": "Hardcoded Region Split",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hardcoded Region Split": {
+      "main": [
+        [
+          {
+            "node": "Agent - North Region",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agent - South Region",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agent - East Region",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Agent - West Region",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - North": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent - North Region",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - South": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent - South Region",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - East": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent - East Region",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - West": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agent - West Region",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent - North Region": {
+      "main": [
+        [
+          {
+            "node": "Merge Regions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agent - South Region": {
+      "main": [
+        [
+          {
+            "node": "Merge Regions",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Agent - East Region": {
+      "main": [
+        [
+          {
+            "node": "Merge Regions",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Agent - West Region": {
+      "main": [
+        [
+          {
+            "node": "Merge Regions",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "Merge Regions": {
+      "main": [
+        [
+          {
+            "node": "Region Aggregator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Region Aggregator": {
+      "main": [
+        [
+          {
+            "node": "Summarization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Synthesis": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Summarization",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarization": {
+      "main": [
+        [
+          {
+            "node": "Build Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Response": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "38c7c4e5-a915-4bb0-841a-121af22cfdca",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3b08f72cfb80f155cac1550cf0e5e2633a2c06cfaacd1f2ea62b126dcabcb29f"
+  },
+  "id": "vB5eY7fGTxu5Z7Qo",
+  "tags": []
+}

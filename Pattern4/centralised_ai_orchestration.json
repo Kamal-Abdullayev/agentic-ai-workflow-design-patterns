@@ -1,0 +1,697 @@
+{
+  "name": "Pattern 4: Centralised AI Orchestration",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "centralised-orchestration",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "d4a39300-6ef9-407f-ad6e-ca1f2edcf67d",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -304,
+        976
+      ],
+      "webhookId": "d3e4f5a6-b7c8-9012-defa-345678901bcd"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "o_ts1",
+              "name": "start_time_ms",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            },
+            {
+              "id": "o_ts2",
+              "name": "input_text",
+              "value": "={{ $json.body.prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "o_ts3",
+              "name": "input_token_estimate",
+              "value": "={{ Math.ceil($json.body.prompt.length / 4) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "062517c1-8601-4d89-a06f-028eb8cb392c",
+      "name": "Record Start Time",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -64,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a senior AI research coordinator. A user has submitted the following question:\n\n{{ $('Record Start Time').item.json.input_text }}\n\nYour task: decompose this question into 1, 2 or 3 focused subtasks for specialist worker agents.\n\nDecision guide:\n- 1 worker — simple, single-focus questions\n- 2 workers — moderately complex questions with two clear dimensions\n- 3 workers — complex, multi-faceted questions with three distinct angles\n\nOutput ONLY valid JSON — no markdown fences, no explanation outside the JSON:\n{\n  \"worker_count\": <integer 1, 2, or 3>,\n  \"decomposition_rationale\": \"<one sentence explaining your choice>\",\n  \"task_a\": \"<focused task for Worker A — always required>\",\n  \"task_b\": \"<focused task for Worker B — required only if worker_count >= 2, else empty string>\",\n  \"task_c\": \"<focused task for Worker C — required only if worker_count = 3, else empty string>\"\n}"
+      },
+      "id": "affb1149-9622-4260-8c31-ce4831b1847d",
+      "name": "Coordinator – Decompose",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        160,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "63422449-b6f5-4bd6-841e-8c9fc325586e",
+      "name": "Ollama – Coordinator",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        160,
+        1152
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst coordOutput = ($input.first().json.text || '').trim();\nconst inputText   = $('Record Start Time').item.json.input_text;\nlet fallback = false;\nlet plan = { worker_count: 1, decomposition_rationale: 'Parse fallback — using single worker', task_a: inputText, task_b: '', task_c: '' };\n\ntry {\n  const m = coordOutput.match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    const parsed = JSON.parse(m[0]);\n    if (parsed && typeof parsed.worker_count === 'number') { plan = parsed; }\n    else { fallback = true; }\n  } else { fallback = true; }\n} catch(e) { fallback = true; }\n\nplan.worker_count = Math.max(1, Math.min(3, Math.round(plan.worker_count || 1)));\nif (!plan.task_a) plan.task_a = inputText;\nplan.task_b = plan.task_b || '';\nplan.task_c = plan.task_c || '';\n\nreturn [{ json: {\n  worker_count:               plan.worker_count,\n  decomposition_rationale:    plan.decomposition_rationale || '',\n  task_a:                     plan.task_a,\n  task_b:                     plan.task_b,\n  task_c:                     plan.task_c,\n  coordinator_raw_output:     coordOutput,\n  coordinator_token_estimate: Math.ceil(coordOutput.length / 4),\n  parse_fallback_used:        fallback\n}}];\n"
+      },
+      "id": "fafb164e-edae-435d-a836-988e7589f733",
+      "name": "Parse Coordinator Plan",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        976
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language.\n\nYou are a specialist AI research worker. Complete the following task clearly, accurately and thoroughly.\n\nWrite in flowing prose — no bullet lists, no section headers. Be direct and informative. Aim for 120–160 words.\n\nTask: {{ $('Parse Coordinator Plan').item.json.task_a }}"
+      },
+      "id": "a3cea220-c3c9-48d6-b8b4-c2444c5b3301",
+      "name": "Worker A – Executor",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        848,
+        496
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "29d8395f-464f-4c95-8e56-657f46975b50",
+      "name": "Ollama – Worker A",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        848,
+        672
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "gate_b1",
+              "leftValue": "={{ $json.worker_count }}",
+              "rightValue": 2,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "57a6b0ce-488a-4ed8-b339-cd90c638f193",
+      "name": "Gate – Use Worker B?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        672,
+        960
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language.\n\nYou are a specialist AI research worker. Complete the following task clearly, accurately and thoroughly.\n\nWrite in flowing prose — no bullet lists, no section headers. Be direct and informative. Aim for 120–160 words.\n\nTask: {{ $('Parse Coordinator Plan').item.json.task_b }}"
+      },
+      "id": "e5895aa2-2937-4da5-ae19-073be3667e63",
+      "name": "Worker B – Executor",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        944,
+        784
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "1eee8b47-76c1-43e2-a1d2-9c6a6683e400",
+      "name": "Ollama – Worker B",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        944,
+        992
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "skip_b1",
+              "name": "skipped",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "skip_b2",
+              "name": "worker",
+              "value": "B",
+              "type": "string"
+            },
+            {
+              "id": "skip_b3",
+              "name": "text",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "d5f0ec4c-24c6-4926-9631-0ce143d39101",
+      "name": "Skip B – Placeholder",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        928,
+        1136
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "gate_c1",
+              "leftValue": "={{ $json.worker_count }}",
+              "rightValue": 3,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1b5f0faf-531d-402e-b0f9-8e1c1c0284dc",
+      "name": "Gate – Use Worker C?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        656,
+        1264
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language.\n\nYou are a specialist AI research worker. Complete the following task clearly, accurately and thoroughly.\n\nWrite in flowing prose — no bullet lists, no section headers. Be direct and informative. Aim for 120–160 words.\n\nTask: {{ $('Parse Coordinator Plan').item.json.task_c }}"
+      },
+      "id": "67912636-83a0-4c10-a8e4-cdbe82e7130f",
+      "name": "Worker C – Executor",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        912,
+        1312
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "7609ee8e-da1c-4e13-97fb-db594e65910a",
+      "name": "Ollama – Worker C",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        992,
+        1488
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "skip_c1",
+              "name": "skipped",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "skip_c2",
+              "name": "worker",
+              "value": "C",
+              "type": "string"
+            },
+            {
+              "id": "skip_c3",
+              "name": "text",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b7749a24-e6b0-439b-90f6-6893088edc38",
+      "name": "Skip C – Placeholder",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        928,
+        1632
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "990bad9a-cc86-4364-8f40-e0b6a93a0efb",
+      "name": "Merge Worker Outputs",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1584,
+        1040
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items     = $input.all();\nconst plan      = $('Parse Coordinator Plan').item.json;\nconst labels    = ['A', 'B', 'C'];\nconst taskKeys  = ['task_a', 'task_b', 'task_c'];\n\nconst workerOutputs = [];\nitems.forEach((item, i) => {\n  if (!item.json.skipped) {\n    const text   = (item.json.text || '').trim();\n    const tokEst = Math.ceil(text.length / 4);\n    workerOutputs.push({\n      worker:         'Worker ' + labels[i],\n      task_assigned:  plan[taskKeys[i]] || '',\n      response:       text,\n      token_estimate: tokEst\n    });\n  }\n});\n\nconst skipped = items\n  .filter(i => i.json.skipped)\n  .map(i => i.json.worker || 'unknown');\n\nconst workerBlock = workerOutputs.map((w, i) =>\n  '--- Worker ' + (i + 1) + ' (' + w.worker + ') ---\\n' +\n  'Task: ' + w.task_assigned + '\\n\\n' +\n  'Response:\\n' + w.response\n).join('\\n\\n');\n\nreturn [{ json: {\n  worker_outputs:          workerOutputs,\n  worker_outputs_text:     workerBlock,\n  active_worker_count:     workerOutputs.length,\n  skipped_workers:         skipped,\n  worker_count_requested:  plan.worker_count,\n  decomposition_rationale: plan.decomposition_rationale\n}}];\n"
+      },
+      "id": "a368ca04-d197-4cf1-bea1-cdd4ba5c5765",
+      "name": "Filter Skips + Collect",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=LANGUAGE RULE: You MUST respond in English only. Do not use any other language.\n\nYou are a senior AI research coordinator. You delegated a user question to {{ $json.active_worker_count }} specialist worker agent(s) and received their outputs below.\n\nOriginal question: {{ $('Record Start Time').item.json.input_text }}\n\nYour decomposition rationale: {{ $json.decomposition_rationale }}\n\n{{ $json.worker_outputs_text }}\n\nSynthesise these outputs into ONE unified, well-rounded answer. Write in natural, flowing prose as a senior researcher would. 200–250 words. Do not mention the workers, tasks or decomposition process."
+      },
+      "id": "beb2ad7a-14b2-4d1e-9367-f598938eed50",
+      "name": "Coordinator – Synthesise",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        2080,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "aced3215-cf49-4a8a-9e0d-fe7aa80fae25",
+      "name": "Ollama – Synthesise",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        1280
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst endMs      = Date.now();\nconst startMs    = $('Record Start Time').item.json.start_time_ms;\nconst inputTok   = $('Record Start Time').item.json.input_token_estimate || 0;\nconst inputText  = $('Record Start Time').item.json.input_text;\nconst latMs      = endMs - startMs;\n\nconst plan       = $('Parse Coordinator Plan').item.json;\nconst filterData = $('Filter Skips + Collect').item.json;\nconst synthText  = ($input.first().json.text || '').trim();\nconst synthTok   = Math.ceil(synthText.length / 4);\n\nconst coordTok       = plan.coordinator_token_estimate || 0;\nconst workerOutputs  = filterData.worker_outputs || [];\nconst totalWorkerTok = workerOutputs.reduce((s, w) => s + (w.token_estimate || 0), 0);\nconst activeCnt      = filterData.active_worker_count || 0;\n\nconst totalInputTok  = inputTok + coordTok;\nconst totalOutputTok = coordTok + totalWorkerTok + synthTok;\nconst totalTok       = totalInputTok + totalOutputTok;\n\nconst llmCallsActual = 2 + activeCnt;\nconst llmCallsMax    = 5;\n\nreturn [{ json: {\n\n  user_prompt:  inputText,\n  final_answer: synthText,\n\n  metadata: {\n    pattern:           'Centralised AI Orchestration',\n    pattern_category:  'AI-Orchestrated Multi-Agent Pattern',\n    run_timestamp:     new Date().toISOString(),\n    model:             'qwen2.5:14b',\n    model_provider:    'Ollama (local)',\n    temperature:       'not_configurable_via_n8n_ollama_node',\n    latency_ms:        latMs,\n    latency_seconds:   parseFloat((latMs / 1000).toFixed(2)),\n    llm_calls_actual:  llmCallsActual,\n    llm_calls_max:     llmCallsMax,\n    token_usage: {\n      total_input_tokens:  totalInputTok,\n      total_output_tokens: totalOutputTok,\n      total_tokens:        totalTok\n    },\n    status:             'completed',\n    termination_reason: 'coordinator_synthesised_' + activeCnt + '_worker_output(s)'\n  },\n\n  execution_trace: {\n\n    coordinator_decompose: {\n      worker_count_decided: plan.worker_count,\n      workers_active:       activeCnt,\n      workers_skipped:      filterData.skipped_workers || [],\n      rationale:            plan.decomposition_rationale,\n      task_a:               plan.task_a,\n      task_b:               plan.task_b || null,\n      task_c:               plan.task_c || null,\n      raw_output:           plan.coordinator_raw_output || '',\n      token_estimate:       coordTok,\n      parse_fallback_used:  plan.parse_fallback_used\n    },\n\n    workers: workerOutputs.map(w => ({\n      worker:         w.worker,\n      task_assigned:  w.task_assigned,\n      output:         w.response,\n      token_estimate: w.token_estimate\n    })),\n\n    synthesis: {\n      output:         synthText,\n      token_estimate: synthTok\n    },\n\n    structural_properties: {\n      orchestration_type:  'AI-driven (LLM coordinator)',\n      task_decomposition:  'dynamic — generated at runtime by Coordinator LLM',\n      worker_prompts:      'dynamic — not hardcoded',\n      worker_count:        'dynamic (1–3, decided by Coordinator at runtime)',\n      bypass_mechanism:    'IF gate nodes with Set placeholder items for unused worker slots',\n      merge_strategy:      'fixed 3-slot Merge node; skip placeholders filtered by code before synthesis',\n      coordination_phases: 2,\n      total_llm_calls:     llmCallsActual,\n      ai_in_orchestration: true\n    },\n\n    llm_limitation: 'n8n Ollama node (lmChatOllama typeVersion 1) does not expose a temperature parameter. Temperature is governed by the Ollama server default (typically 0.8). To override it, set the value in the Ollama Modelfile or replace the native Ollama node with an HTTP Request node and pass temperature in the request body.'\n  }\n\n}}];\n"
+      },
+      "id": "f5ca11ca-1971-432d-bc3f-bda479bc1ed8",
+      "name": "Compute Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        1056
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b9cec63b-0b4b-4f95-b823-ac2ab20f5ac9",
+      "name": "Respond – Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2560,
+        1056
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Record Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Start Time": {
+      "main": [
+        [
+          {
+            "node": "Coordinator – Decompose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Coordinator": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Coordinator – Decompose",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coordinator – Decompose": {
+      "main": [
+        [
+          {
+            "node": "Parse Coordinator Plan",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Coordinator Plan": {
+      "main": [
+        [
+          {
+            "node": "Worker A – Executor",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gate – Use Worker B?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Gate – Use Worker C?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Worker A": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Worker A – Executor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Worker A – Executor": {
+      "main": [
+        [
+          {
+            "node": "Merge Worker Outputs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gate – Use Worker B?": {
+      "main": [
+        [
+          {
+            "node": "Worker B – Executor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip B – Placeholder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Worker B": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Worker B – Executor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Worker B – Executor": {
+      "main": [
+        [
+          {
+            "node": "Merge Worker Outputs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Skip B – Placeholder": {
+      "main": [
+        [
+          {
+            "node": "Merge Worker Outputs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Gate – Use Worker C?": {
+      "main": [
+        [
+          {
+            "node": "Worker C – Executor",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip C – Placeholder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Worker C": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Worker C – Executor",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Worker C – Executor": {
+      "main": [
+        [
+          {
+            "node": "Merge Worker Outputs",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Skip C – Placeholder": {
+      "main": [
+        [
+          {
+            "node": "Merge Worker Outputs",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Worker Outputs": {
+      "main": [
+        [
+          {
+            "node": "Filter Skips + Collect",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Skips + Collect": {
+      "main": [
+        [
+          {
+            "node": "Coordinator – Synthesise",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Synthesise": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Coordinator – Synthesise",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Coordinator – Synthesise": {
+      "main": [
+        [
+          {
+            "node": "Compute Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compute Metrics": {
+      "main": [
+        [
+          {
+            "node": "Respond – Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "030f69b1-3cc2-4cca-a49b-1b0ca0c9e93a",
+  "meta": {
+    "instanceId": "3b08f72cfb80f155cac1550cf0e5e2633a2c06cfaacd1f2ea62b126dcabcb29f"
+  },
+  "id": "Alye6NTqPdoCbfat",
+  "tags": []
+}

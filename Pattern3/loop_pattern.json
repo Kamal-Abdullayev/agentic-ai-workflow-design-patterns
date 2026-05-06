@@ -1,0 +1,439 @@
+{
+  "name": "Pattern 3 – Loop",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "loop-pattern",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "062fc243-f369-4851-a698-8c4cde211ed0",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        896,
+        3872
+      ],
+      "webhookId": "c3d4e5f6-a7b8-9012-def0-345678901bcd"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "l_ts1",
+              "name": "start_time_ms",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            },
+            {
+              "id": "l_ts2",
+              "name": "input_text",
+              "value": "={{ $json.body.prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "l_ts3",
+              "name": "input_token_estimate",
+              "value": "={{ Math.ceil($json.body.prompt.length / 4) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "67f221b9-57d7-439d-b58f-172cb79928b4",
+      "name": "Record Start Time",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1136,
+        3872
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "l_s1",
+              "name": "input_text",
+              "value": "={{ $json.input_text }}",
+              "type": "string"
+            },
+            {
+              "id": "l_s2",
+              "name": "start_time_ms",
+              "value": "={{ $json.start_time_ms }}",
+              "type": "number"
+            },
+            {
+              "id": "l_s3",
+              "name": "input_token_estimate",
+              "value": "={{ $json.input_token_estimate }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "79c0d11c-4d7d-40f5-8ec3-93357c265dbe",
+      "name": "Init Loop State",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1376,
+        3872
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst init = $input.first().json;\nconst g = $getWorkflowStaticData('global');\ng.loop_state = {\n  cumul_tokens:         0,\n  cumul_input_tokens:   0,\n  prev_answer:          '',\n  max_iterations:       3,\n  input_text:           init.input_text,\n  start_time_ms:        init.start_time_ms,\n  input_token_estimate: init.input_token_estimate,\n  iterations_trace:     [],\n  current_prompt_text:  ''\n};\n// 3 slots — safety cap is now iteration 3\nreturn [1, 2, 3].map(i => ({ json: {\n  iteration:            i,\n  input_text:           init.input_text,\n  start_time_ms:        init.start_time_ms,\n  input_token_estimate: init.input_token_estimate\n} }));\n"
+      },
+      "id": "acc83947-f918-4e04-9cfc-084e3d20bbf4",
+      "name": "Prepare Iterations",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1616,
+        3872
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "0223ffa1-ef62-40dd-8f8d-d95c6704eb8c",
+      "name": "Loop Over Items",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1856,
+        3872
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst slot       = $input.first().json;\nconst g          = $getWorkflowStaticData('global');\nconst state      = g.loop_state || {};\nconst prevAnswer = state.prev_answer || '';\n\nconst plainText = [\n  \"STRICT OUTPUT FORMAT: plain text only.\",\n  \"Forbidden: markdown symbols (* # _ ` ~), bold, italic, bullet points, numbered lists,\",\n  \"LaTeX math notation, html, markdown, and the literal two-character sequence backslash-n.\",\n  \"Use only regular letters, numbers, punctuation, and real line breaks.\",\n  \"Write in flowing prose paragraphs.\",\n  \"\"\n].join(\" \") + \"\\n\\n\";\n\nconst promptText = !prevAnswer\n  ? plainText + slot.input_text\n  : plainText + slot.input_text\n    + `\\n\\nYour answer so far (after ${slot.iteration - 1} iteration(s)):\\n${prevAnswer}`\n    + `\\n\\nContinue building on the above. Add more depth, detail or nuance not yet covered. Avoid repeating what was already said.`;\n\ng.loop_state = { ...state, current_prompt_text: promptText };\nreturn [{ json: { ...slot, prompt_text: promptText } }];\n"
+      },
+      "id": "81b08d7b-aefe-4525-b8d4-33aad345e020",
+      "name": "Format Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2112,
+        3872
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt_text }}"
+      },
+      "id": "7763ef82-af7b-4373-aa21-2ad136f2ad23",
+      "name": "Loop Agent",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        2320,
+        3872
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst raw = ($input.first().json.text || '');\n\nlet clean = raw\n  // literal \\n sequences the model outputs as text → real newline\n  .replace(/\\\\n/g, '\\n')\n  // strip markdown bold / italic\n  .replace(/\\*\\*([\\s\\S]*?)\\*\\*/g, '$1')\n  .replace(/\\*([\\s\\S]*?)\\*/g,     '$1')\n  .replace(/__([\\s\\S]*?)__/g,     '$1')\n  .replace(/_([\\s\\S]*?)_/g,       '$1')\n  // strip heading markers\n  .replace(/^#{1,6}\\s+/gm, '')\n  // strip inline code backticks\n  .replace(/`([^`\\n]+)`/g, '$1')\n  // convert markdown bullet lines \"- text\" / \"* text\" to plain \"text\"\n  .replace(/^[\\-\\*\\•]\\s+/gm, '')\n  // strip numbered list markers \"1. \" / \"2) \"\n  .replace(/^\\d+[\\.\\)]\\s+/gm, '')\n  // collapse 3+ blank lines into 2\n  .replace(/\\n{3,}/g, '\\n\\n')\n  .trim();\n\nreturn [{ json: { ...$input.first().json, text: clean } }];\n"
+      },
+      "id": "e3fa7de0-8b4c-4ce2-be34-d4a155193f22",
+      "name": "Clean Output",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        3872
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "27bc300c-0333-43a7-b1ed-6c01e2da747f",
+      "name": "Ollama – Loop Agent",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        2320,
+        4064
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst agentOutput = ($input.first().json.text || '').trim();\nconst slot        = $('Loop Over Items').item.json;\nconst g           = $getWorkflowStaticData('global');\nconst state       = g.loop_state || {};\n\nconst tokensOutputEst = Math.ceil(agentOutput.length / 4);\nconst tokensInputEst  = Math.ceil((state.current_prompt_text || '').length / 4);\nconst newCumul        = (state.cumul_tokens       || 0) + tokensOutputEst;\nconst newCumulInput   = (state.cumul_input_tokens || 0) + tokensInputEst;\n\n// ── Termination rules (evaluated in priority order) ─────────────────────────\n//\n// Rule 1 — Output too short (< 30 tokens): answer is complete, no value in expanding\nconst tooShort         = tokensOutputEst < 30;\n//\n// Rule 2 — Cumulative depth reached (≥ 60 tokens total, only checked from iteration 2+)\nconst cumulSufficient  = (slot.iteration >= 2) && (newCumul >= 60);\n//\n// Rule 3 — Hard safety cap at iteration 3\nconst capReached       = slot.iteration >= 3;\n\nconst isDone = tooShort || cumulSufficient || capReached;\n\nlet terminationReason = 'continue';\nif      (tooShort)          terminationReason = 'output_too_short_for_expansion';\nelse if (cumulSufficient)   terminationReason = 'cumulative_depth_reached';\nelse if (capReached)        terminationReason = 'max_iterations_safety_cap';\n\nconst traceEntry = {\n  iteration:              slot.iteration,\n  prompt_sent:            state.current_prompt_text || '',\n  output:                 agentOutput,\n  tokens_input_estimate:  tokensInputEst,\n  tokens_output_estimate: tokensOutputEst,\n  tokens_cumulative:      newCumul,\n  is_done:                isDone,\n  termination_reason:     terminationReason\n};\n\nconst updatedTrace = [...(state.iterations_trace || []), traceEntry];\ng.loop_state = { ...state, cumul_tokens: newCumul, cumul_input_tokens: newCumulInput, prev_answer: agentOutput, iterations_trace: updatedTrace };\n\nreturn [{ json: {\n  current_answer:       agentOutput,\n  current_iteration:    slot.iteration,\n  tokens_this_iter:     tokensOutputEst,\n  cumul_tokens_after:   newCumul,\n  cumul_input_tokens:   newCumulInput,\n  is_done:              isDone,\n  termination_reason:   terminationReason,\n  too_short:            tooShort,\n  cumul_sufficient:     cumulSufficient,\n  cap_reached:          capReached,\n  iterations_trace:     updatedTrace,\n  input_text:           state.input_text,\n  start_time_ms:        state.start_time_ms,\n  input_token_estimate: state.input_token_estimate,\n  max_iterations:       state.max_iterations\n} }];\n"
+      },
+      "id": "351a3a3c-5349-408a-891a-b9a55f7264e0",
+      "name": "Termination Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2832,
+        3872
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "exit_c",
+              "leftValue": "={{ $json.is_done }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "61c0c826-4969-4b80-a9d3-685c45dce412",
+      "name": "Exit Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        3008,
+        3872
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst s = $input.first().json;\nreturn [{ json: {\n  final_answer:         s.current_answer,\n  iterations_run:       s.current_iteration,\n  termination_reason:   s.termination_reason,\n  tokens_this_iter:     s.tokens_this_iter,\n  cumul_tokens:         s.cumul_tokens_after,\n  cumul_input_tokens:   s.cumul_input_tokens,\n  depth_reached:        s.depth_reached,\n  budget_exhausted:     s.budget_exhausted,\n  cap_reached:          s.cap_reached,\n  iterations_trace:     s.iterations_trace,\n  input_text:           s.input_text,\n  start_time_ms:        s.start_time_ms,\n  input_token_estimate: s.input_token_estimate,\n  per_iter_limit:       s.per_iter_limit,\n  max_total_tokens:     s.max_total_tokens\n} }];\n"
+      },
+      "id": "48d07299-bcea-49c5-bd14-934d61effa22",
+      "name": "Loop Collector",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3200,
+        3792
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst data   = $input.first().json;\nconst endMs  = Date.now();\nconst latSec = parseFloat(((endMs - data.start_time_ms) / 1000).toFixed(2));\n\nconst totalOutputTokens = data.cumul_tokens;\nconst totalInputTokens  = data.cumul_input_tokens || data.input_token_estimate;\nconst totalTokens       = totalInputTokens + totalOutputTokens;\n\nreturn [{ json: {\n  user_prompt:  data.input_text,\n  final_answer: data.final_answer,\n\n  metadata: {\n    pattern:          \"Loop\",\n    pattern_category: \"Deterministic Workflow Pattern\",\n    run_timestamp:    new Date().toISOString(),\n    model:            \"qwen2.5:14b\",\n    model_provider:   \"Ollama (local)\",\n    temperature:      0.7,\n    latency_ms:       endMs - data.start_time_ms,\n    latency_seconds:  latSec,\n    llm_calls_actual: data.iterations_run,\n    llm_calls_max:    3,\n    token_usage: {\n      total_input_tokens:  totalInputTokens,\n      total_output_tokens: totalOutputTokens,\n      total_tokens:        totalTokens\n    },\n    status:             \"completed\",\n    termination_reason: data.termination_reason\n  },\n\n  execution_trace: {\n    iterations: data.iterations_trace,\n    loop_config: {\n      iter1_exit_if_output_below_tokens: 30,\n      iter2_exit_if_cumul_above_tokens:  60,\n      max_iterations:                    3\n    },\n    loop_behaviour: {\n      iterations_run:           data.iterations_run,\n      output_too_short:         data.too_short,\n      cumulative_depth_reached: data.cumul_sufficient,\n      safety_cap_triggered:     data.cap_reached,\n      exited_early:             data.iterations_run < 3\n    }\n  }\n} }];\n"
+      },
+      "id": "b846c113-0950-4245-8a0a-6911f3a5ab3d",
+      "name": "RQ3 – Compute Metrics",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3440,
+        3792
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "1deb394e-529d-4c74-b486-51770fc33da7",
+      "name": "Respond – Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        3680,
+        3792
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Record Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Start Time": {
+      "main": [
+        [
+          {
+            "node": "Init Loop State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Init Loop State": {
+      "main": [
+        [
+          {
+            "node": "Prepare Iterations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Iterations": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Format Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Prompt": {
+      "main": [
+        [
+          {
+            "node": "Loop Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama – Loop Agent": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Loop Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Agent": {
+      "main": [
+        [
+          {
+            "node": "Clean Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Termination Check": {
+      "main": [
+        [
+          {
+            "node": "Exit Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Exit Gate": {
+      "main": [
+        [
+          {
+            "node": "Loop Collector",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Collector": {
+      "main": [
+        [
+          {
+            "node": "RQ3 – Compute Metrics",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RQ3 – Compute Metrics": {
+      "main": [
+        [
+          {
+            "node": "Respond – Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Output": {
+      "main": [
+        [
+          {
+            "node": "Termination Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b07a5092-22fa-4ac3-924f-2d0aecd53577",
+  "meta": {
+    "instanceId": "3b08f72cfb80f155cac1550cf0e5e2633a2c06cfaacd1f2ea62b126dcabcb29f"
+  },
+  "id": "nwx5P0mfSi0RVS8n",
+  "tags": []
+}

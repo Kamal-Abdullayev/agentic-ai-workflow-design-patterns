@@ -1,0 +1,34 @@
+[
+  {
+    "user_prompt": "List the 5 most populated cities. Do not provide any additional information",
+    "final_answer": "1. Tokyo, Japan\n2. Delhi, India\n3. Shanghai, China\n4. Sao Paulo, Brazil\n5. Cairo, Egypt",
+    "metadata": {
+      "pattern": "Sequential Pipeline",
+      "pattern_category": "Deterministic Workflow Pattern",
+      "run_timestamp": "2026-04-26T18:27:50.329Z",
+      "model": "qwen2.5:14b",
+      "model_provider": "Ollama (local)",
+      "temperature": 0.7,
+      "latency_ms": 60914,
+      "latency_seconds": 60.91,
+      "llm_calls_actual": 1,
+      "llm_calls_max": 3,
+      "token_usage": {
+        "total_input_tokens": 19,
+        "total_output_tokens": 22,
+        "total_tokens": 41
+      },
+      "status": "gate_rejected",
+      "termination_reason": "stage1_token_count_below_threshold"
+    },
+    "execution_trace": {
+      "gate_decision": "REJECT",
+      "gate_logic": "Stage 1 token estimate >= 30",
+      "stage1_token_estimate": 22,
+      "stage1_is_insufficient": false,
+      "stage1_raw_output": "1. Tokyo, Japan\n2. Delhi, India\n3. Shanghai, China\n4. Sao Paulo, Brazil\n5. Cairo, Egypt",
+      "rq3_note": "Gate blocked - only 1 of 3 LLM calls was made"
+    }
+  }
+]
+

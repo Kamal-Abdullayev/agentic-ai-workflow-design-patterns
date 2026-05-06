@@ -1,0 +1,343 @@
+{
+  "name": "Pattern 2: Parallel Voting",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "parallel-voting",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "88ae0e0b-f8d5-4a47-82ef-7cd7eb8feca8",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        12576,
+        3280
+      ],
+      "webhookId": "c2d3e4f5-a6b7-8901-cdef-234567890abc"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "v_ts1",
+              "name": "start_time_ms",
+              "value": "={{ Date.now() }}",
+              "type": "number"
+            },
+            {
+              "id": "v_ts2",
+              "name": "input_text",
+              "value": "={{ $json.body.prompt }}",
+              "type": "string"
+            },
+            {
+              "id": "v_ts3",
+              "name": "input_token_estimate",
+              "value": "={{ Math.ceil($json.body.prompt.length / 4) }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f791a7ac-0536-4789-8347-d0cdd7ddf192",
+      "name": "Record Start Time",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        12816,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a knowledgeable AI research assistant.\nAnswer the user's question clearly, accurately and thoroughly.\nWrite in natural, flowing prose - no bullet lists, no section headers.\nBe direct and informative. Aim for 120-180 words.\n\nUser question:\n{{ $('Record Start Time').item.json.input_text }}"
+      },
+      "id": "3eac7084-d117-4fcf-b578-9a9094b3a62d",
+      "name": "Vote Agent 1 (Run 1 of 3)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        13248,
+        2960
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "200e0dea-8472-428f-8878-e0cbf3f3429c",
+      "name": "Ollama - Vote 1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        13248,
+        3152
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a knowledgeable AI research assistant.\nAnswer the user's question clearly, accurately and thoroughly.\nWrite in natural, flowing prose - no bullet lists, no section headers.\nBe direct and informative. Aim for 120-180 words.\n\nUser question:\n{{ $('Record Start Time').item.json.input_text }}"
+      },
+      "id": "1896cd31-a221-4306-8d8b-221953c6b642",
+      "name": "Vote Agent 2 (Run 2 of 3)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        13248,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "9fbe03f9-64f8-4690-9501-f4b9a35adde6",
+      "name": "Ollama - Vote 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        13248,
+        3472
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a knowledgeable AI research assistant.\nAnswer the user's question clearly, accurately and thoroughly.\nWrite in natural, flowing prose - no bullet lists, no section headers.\nBe direct and informative. Aim for 120-180 words.\n\nUser question:\n{{ $('Record Start Time').item.json.input_text }}"
+      },
+      "id": "e1a9588a-7611-41cf-8f81-a7c6812bedc0",
+      "name": "Vote Agent 3 (Run 3 of 3)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        13248,
+        3600
+      ]
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:14b",
+        "options": {}
+      },
+      "id": "92886d4f-878f-42ed-b1b0-185fc6c5fdd7",
+      "name": "Ollama - Vote 3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        13248,
+        3792
+      ],
+      "credentials": {
+        "ollamaApi": {
+          "id": "03yXtw2jFwl1MCUT",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "a8c48c4e-d6f0-4318-9ccb-d4a397f58f28",
+      "name": "Merge Votes (Wait for All 3)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        13776,
+        3264
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items     = $input.all();\nconst endMs     = Date.now();\nconst startMs   = $('Record Start Time').item.json.start_time_ms;\nconst inputTok  = $('Record Start Time').item.json.input_token_estimate;\nconst inputText = $('Record Start Time').item.json.input_text;\nconst latMs     = endMs - startMs;\nconst latSec    = parseFloat((latMs / 1000).toFixed(2));\n\n// ── Deterministic scoring (no extra LLM call) ─────────────────────────────\nfunction scoreAnswer(text) {\n  if (!text || text.trim().length === 0) return { total: 0, breakdown: {} };\n  const t         = text.trim();\n  const words     = t.split(/\\s+/);\n  const wc        = words.length;\n  const sentences = (t.match(/[.!?]+(\\s|$)/g) || []).length;\n  const uniqueWords = new Set(words.map(w => w.toLowerCase().replace(/[^a-z]/g, '')));\n  const ttr       = uniqueWords.size / Math.max(wc, 1);\n\n  const lengthScore   = wc >= 80 && wc <= 220 ? 3 : wc >= 50 ? 1 : 0;\n  const sentenceScore = sentences >= 4 ? 3 : sentences >= 3 ? 2 : sentences >= 2 ? 1 : 0;\n  const toneScore     = (!t.startsWith('I ') && wc > 40) ? 2 : 0;\n  const uniqueScore   = ttr >= 0.6 ? 2 : ttr >= 0.5 ? 1 : 0;\n  return { total: lengthScore + sentenceScore + toneScore + uniqueScore,\n           breakdown: { lengthScore, sentenceScore, toneScore, uniqueScore } };\n}\n\n// ── Parse each agent output ───────────────────────────────────────────────\nconst agentLabels = [\n  'Vote Agent 1 (Run 1 of 3)',\n  'Vote Agent 2 (Run 2 of 3)',\n  'Vote Agent 3 (Run 3 of 3)'\n];\n\nconst agents = items.map((item, i) => {\n  const text    = (item.json.text || item.json.output || '').trim();\n  const words   = text ? text.split(/\\s+/).length : 0;\n  const tokEst  = Math.ceil(text.length / 4);\n  const scored  = scoreAnswer(text);\n  return {\n    label:           agentLabels[i] || `Vote Agent ${i + 1}`,\n    run:             i + 1,\n    text:            text,\n    word_count:      words,\n    tokens:          tokEst,\n    quality_score:   scored.total,\n    score_breakdown: scored.breakdown,\n    produced:        text.length > 0\n  };\n});\n\n// ── Select winner ─────────────────────────────────────────────────────────\nconst ranked   = [...agents].sort((a, b) =>\n  b.quality_score !== a.quality_score\n    ? b.quality_score - a.quality_score\n    : b.word_count - a.word_count\n);\nconst winner   = ranked[0];\nconst scores   = agents.map(a => a.quality_score);\nconst maxScore = Math.max(...scores);\nconst minScore = Math.min(...scores);\nconst spread   = maxScore - minScore;\nconst tieUsed  = scores.filter(s => s === maxScore).length > 1;\n\n// ── Token totals ──────────────────────────────────────────────────────────\nconst totalOutputTok = agents.reduce((s, a) => s + a.tokens, 0);\nconst totalTok       = inputTok + totalOutputTok;\n\n// ── Spread label ──────────────────────────────────────────────────────────\nconst spreadLabel = spread === 0 ? 'UNANIMOUS - all agents scored equally'\n                  : spread <= 2  ? 'LOW - high agreement between agents'\n                  : spread <= 4  ? 'MEDIUM - moderate divergence'\n                  :                'HIGH - agents diverged significantly';\n\n// ── Standard envelope ─────────────────────────────────────────────────────\nreturn [{\n  json: {\n    user_prompt:  inputText,\n    final_answer: winner.text,\n    metadata: {\n      pattern:          'Parallel Voting',\n      pattern_category: 'Parallel Decomposition Pattern',\n      run_timestamp:    new Date().toISOString(),\n      model:            'qwen2.5:14b',\n      model_provider:   'Ollama (local)',\n      temperature:      0.7,\n      latency_ms:       latMs,\n      latency_seconds:  latSec,\n      llm_calls_actual: 3,\n      llm_calls_max:    3,\n      token_usage: {\n        total_input_tokens:  inputTok,\n        total_output_tokens: totalOutputTok,\n        total_tokens:        totalTok\n      },\n      status:            'completed',\n      termination_reason: 'all_votes_collected_winner_selected'\n    },\n    execution_trace: {\n      vote_agents: {\n        vote_1: {\n          label:           agents[0].label,\n          output:          agents[0].text,\n          tokens:          agents[0].tokens,\n          word_count:      agents[0].word_count,\n          quality_score:   agents[0].quality_score,\n          score_breakdown: agents[0].score_breakdown,\n          is_winner:       agents[0].label === winner.label\n        },\n        vote_2: {\n          label:           agents[1].label,\n          output:          agents[1].text,\n          tokens:          agents[1].tokens,\n          word_count:      agents[1].word_count,\n          quality_score:   agents[1].quality_score,\n          score_breakdown: agents[1].score_breakdown,\n          is_winner:       agents[1].label === winner.label\n        },\n        vote_3: {\n          label:           agents[2].label,\n          output:          agents[2].text,\n          tokens:          agents[2].tokens,\n          word_count:      agents[2].word_count,\n          quality_score:   agents[2].quality_score,\n          score_breakdown: agents[2].score_breakdown,\n          is_winner:       agents[2].label === winner.label\n        }\n      },\n      voting_decision: {\n        winner_agent:         winner.label,\n        winner_run:           winner.run,\n        winner_quality_score: winner.quality_score,\n        score_spread:         spread,\n        score_spread_label:   spreadLabel,\n        all_scores:           agents.map(a => ({ agent: a.label, score: a.quality_score })),\n        selection_method:     'deterministic scoring (length + sentences + tone + lexical diversity) - zero extra LLM cost',\n        tie_break_used:       tieUsed\n      },\n      pipeline_integrity: {\n        all_agents_completed: agents.every(a => a.produced),\n        agents_completed:     agents.filter(a => a.produced).length,\n        agents_failed:        agents.filter(a => !a.produced).length,\n        merge_waited_for_all: true\n      },\n      structural_properties: {\n        orchestration_type:        'parallel_fanout_then_vote',\n        vote_agents_count:         3,\n        vote_agents_run_in_parallel: true,\n        aggregation_strategy:      'deterministic quality scoring (code node - zero extra LLM call)',\n        merger_type:               'n8n_merge_node_3_inputs',\n        llm_calls_for_aggregation: 0\n      }\n    }\n  }\n}];\n"
+      },
+      "id": "91edb590-aed3-47e7-8897-20d2263a8a9b",
+      "name": "Vote + Metrics (Combined)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        14032,
+        3280
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json; charset=utf-8"
+              }
+            ]
+          }
+        }
+      },
+      "id": "cb2ded48-99cd-4dbf-9fd5-bfd0723895c0",
+      "name": "Respond - Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        14304,
+        3280
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Record Start Time",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Start Time": {
+      "main": [
+        [
+          {
+            "node": "Vote Agent 1 (Run 1 of 3)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Vote Agent 2 (Run 2 of 3)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Vote Agent 3 (Run 3 of 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Vote 1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vote Agent 1 (Run 1 of 3)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Vote 2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vote Agent 2 (Run 2 of 3)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama - Vote 3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vote Agent 3 (Run 3 of 3)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vote Agent 1 (Run 1 of 3)": {
+      "main": [
+        [
+          {
+            "node": "Merge Votes (Wait for All 3)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vote Agent 2 (Run 2 of 3)": {
+      "main": [
+        [
+          {
+            "node": "Merge Votes (Wait for All 3)",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Vote Agent 3 (Run 3 of 3)": {
+      "main": [
+        [
+          {
+            "node": "Merge Votes (Wait for All 3)",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge Votes (Wait for All 3)": {
+      "main": [
+        [
+          {
+            "node": "Vote + Metrics (Combined)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vote + Metrics (Combined)": {
+      "main": [
+        [
+          {
+            "node": "Respond - Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "397772f5-475e-4b99-b14f-cb7bbf5aa401",
+  "meta": {
+    "instanceId": "3b08f72cfb80f155cac1550cf0e5e2633a2c06cfaacd1f2ea62b126dcabcb29f"
+  },
+  "id": "DaXRL05FEO5xJ0kg",
+  "tags": []
+}

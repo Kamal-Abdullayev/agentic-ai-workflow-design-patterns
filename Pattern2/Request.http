@@ -1,0 +1,31 @@
+### Parallel Sectioning - Detialed prompt
+POST http://localhost:5678/webhook-test/parallel-sectioning
+Content-Type: application/json
+
+{
+  "analysis_task": "Identify sales trends, regional patterns and anomalies",
+  "rows": [
+    { "month": "Jan", "product": "A", "sales": 120, "region": "North", "rep": "Alice" },
+    { "month": "Jan", "product": "B", "sales": 340, "region": "South", "rep": "Bob" },
+    { "month": "Feb", "product": "A", "sales": 95,  "region": "East",  "rep": "Alice" },
+    { "month": "Feb", "product": "C", "sales": 210, "region": "West",  "rep": "Carol" },
+    { "month": "Mar", "product": "B", "sales": 480, "region": "North", "rep": "Bob" },
+    { "month": "Mar", "product": "A", "sales": 60,  "region": "South", "rep": "Alice" },
+    { "month": "Apr", "product": "C", "sales": 390, "region": "East",  "rep": "Carol" },
+    { "month": "Apr", "product": "B", "sales": 150, "region": "West",  "rep": "Bob" },
+    { "month": "May", "product": "A", "sales": 275, "region": "North", "rep": "Alice" },
+    { "month": "May", "product": "C", "sales": 510, "region": "South", "rep": "Carol" },
+    { "month": "Jun", "product": "B", "sales": 88,  "region": "East",  "rep": "Bob" },
+    { "month": "Jun", "product": "A", "sales": 430, "region": "West",  "rep": "Alice" }
+  ]
+}
+
+
+### Parallel Voting - Detialed prompt
+POST http://localhost:5678/webhook-test/parallel-voting
+Content-Type: application/json
+
+{
+  "prompt": "List the Baltic countries along with their capitals and populations. Calculate the total combined population across all three"
+}
+

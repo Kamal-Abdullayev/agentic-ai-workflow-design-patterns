@@ -8,13 +8,13 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "be586e1b-5b93-498c-94de-548896ad144e",
+      "id": "456c27e9-919a-471d-bf31-91209c97c3d0",
       "name": "Webhook Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -7232,
-        1424
+        784,
+        1312
       ],
       "webhookId": "d4e5f6a7-b8c9-0123-ef01-456789012cde"
     },
@@ -44,52 +44,39 @@
         },
         "options": {}
       },
-      "id": "b957c80c-dd39-4f16-a7d0-934e602222ac",
+      "id": "6d9e65ca-6afd-4a14-9a92-9ee312dc22f3",
       "name": "Record Start Time",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -6992,
-        1424
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "\nconst prompt = ($input.first().json.input_text || '').trim();\nconst words  = prompt.split(/\\s+/).filter(Boolean);\nconst isEmpty  = words.length === 0;\nconst isSingle = words.length === 1 && !/[a-z]{2,}/i.test(words[0]);\nlet isValid = true, rejectionReason = null;\nif (isEmpty)       { isValid = false; rejectionReason = \"Your prompt is empty. Please type a question or message.\"; }\nelse if (isSingle) { isValid = false; rejectionReason = \"Your message is too short. Please provide more context.\"; }\nreturn [{ json: { ...$input.first().json, is_valid: isValid, rejection_reason: rejectionReason, word_count: words.length } }];\n"
-      },
-      "id": "90f02d7e-551a-43c5-92a9-02c54b42696f",
-      "name": "Input Validator",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        -6752,
-        1424
+        1024,
+        1312
       ]
     },
     {
       "parameters": {
         "jsCode": "\nconst item = $input.first().json;\nconst g    = $getWorkflowStaticData('global');\n\n// ── Complexity scoring (programmatic, zero LLM cost) ─────────────────────────\nconst prompt = (item.input_text || '').toLowerCase().trim();\nconst words  = prompt.split(/\\s+/).filter(Boolean);\n\nconst analyticalVerbs = [\n  'analyse','analyze','evaluate','assess','examine','critically','compare',\n  'contrast','discuss','investigate','justify','distinguish','critique'\n];\nconst multiRequirements = [\n  'and evaluate','and assess','and examine','and discuss','referencing specific',\n  'with examples','policy instruments','case studies','in depth','in detail',\n  'and explain why','causes and','advantages and','pros and cons'\n];\n\nconst hasAnalytical   = analyticalVerbs.some(v => prompt.includes(v));\nconst hasMultiReq     = multiRequirements.some(p => prompt.includes(p));\nconst wordCount       = words.length;\n\nlet minIterations = 1;\nif      (wordCount > 15 && hasAnalytical && hasMultiReq) minIterations = 3;\nelse if (wordCount > 10 || hasAnalytical)                minIterations = 2;\n// else: short/simple/greeting → minIterations = 1\n\ng.reflection_state = {\n  iteration:            1,\n  input_text:           item.input_text,\n  start_time_ms:        item.start_time_ms,\n  input_token_estimate: item.input_token_estimate,\n  current_draft:        '',\n  critic_feedback:      '',\n  is_approved:          false,\n  max_iterations:       3,\n  min_iterations:       minIterations,   // ← NEW\n  complexity: {\n    word_count:       wordCount,\n    has_analytical:   hasAnalytical,\n    has_multi_req:    hasMultiReq\n  }\n};\nreturn [{ json: item }];\n"
       },
-      "id": "00cc9ddd-e4df-41fb-a959-9414d23373f0",
+      "id": "e8d36bdb-8180-4af6-b085-8f99020cae1f",
       "name": "Init Reflection State",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -6544,
-        1424
+        1248,
+        1312
       ]
     },
     {
       "parameters": {
         "jsCode": "\nconst g = $getWorkflowStaticData('global');\nconst s = g.reflection_state;\n\nconst FORMAT_RULE = `FORMATTING RULE: Respond in plain text only. Do not use any markdown formatting — no headers (##, ###), no bold (**text**), no italic (*text*), no bullet points with asterisks or dashes, no horizontal rules. Use plain paragraphs. You may use numbered lists (1. 2. 3.) when listing steps or items, but nothing else.`;\n\nconst promptText = s.iteration === 1\n  ? `You are a helpful, knowledgeable assistant. Respond naturally and appropriately to the following — if it is a greeting, reply in a friendly way; if it is a question, answer it clearly and thoroughly; if it is a technical or academic topic, provide depth and structure.\\n\\n${FORMAT_RULE}\\n\\nInput: ${s.input_text}`\n  : `You are a helpful assistant. A reviewer found specific issues with your previous response. Revise it to fully address every point in the feedback.\\n\\n${FORMAT_RULE}\\n\\nOriginal input:\\n${s.input_text}\\n\\nYour previous response:\\n${s.current_draft}\\n\\nReviewer feedback:\\n${s.critic_feedback}\\n\\nProduce a revised response that directly fixes all issues raised.`;\n\nreturn [{ json: { input_text: s.input_text, prompt_text: promptText } }];\n"
       },
-      "id": "956e1b62-4159-412d-8fff-6f20e0d9ea2a",
+      "id": "5341e10d-d391-4674-bf81-a955eb8719e0",
       "name": "Format Generator Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -6304,
-        1424
+        1488,
+        1312
       ]
     },
     {
@@ -97,13 +84,13 @@
         "promptType": "define",
         "text": "={{ $json.prompt_text }}"
       },
-      "id": "62b1e571-5559-4dff-8535-c0b2d2dbb6bb",
+      "id": "aedee66f-c6f3-4c4b-9846-5ca5756cab50",
       "name": "Generator Agent",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.4,
       "position": [
-        -6064,
-        1424
+        1728,
+        1312
       ]
     },
     {
@@ -111,13 +98,13 @@
         "model": "qwen2.5:14b",
         "options": {}
       },
-      "id": "485651fe-dab8-4505-9b7c-afb131f2fbfa",
+      "id": "f9e0a2b7-ae97-4733-910b-5372061c7c11",
       "name": "Ollama – Generator",
       "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
       "typeVersion": 1,
       "position": [
-        -6064,
-        1664
+        1728,
+        1552
       ],
       "credentials": {
         "ollamaApi": {
@@ -130,13 +117,13 @@
       "parameters": {
         "jsCode": "\nconst item  = $input.first().json;\nconst g     = $getWorkflowStaticData('global');\nconst s     = g.reflection_state;\nconst draft = (item.text || '').trim();\ng.reflection_state = { ...s, current_draft: draft };\nconst promptText =\n`You are a strict quality reviewer. Evaluate whether the response below is the best possible answer to the input. Apply the rubric that fits the nature of the input — do NOT impose academic criteria on casual or simple inputs.\n\nInput: ${s.input_text}\n\nResponse to evaluate (iteration ${s.iteration} of 3):\n${draft}\n\nEvaluate on ALL five universal dimensions:\n1. RELEVANCE — Does the response directly and fully address what was asked or said?\n2. ACCURACY — Is everything stated factually correct?\n3. COMPLETENESS — Does the response cover everything the input reasonably expects?\n4. CLARITY — Is the response easy to understand, well-phrased and appropriately concise?\n5. APPROPRIATENESS — Does the tone and format match the input type?\n\nScoring rules:\n- Each dimension is worth 2 points (max 10 total)\n- Score 9–10: The response is exactly right — nothing to improve\n- Score 7–8: Good but has a clear weakness in at least one dimension\n- Score 5–6: Noticeably off in tone, completeness or accuracy\n- Score 1–4: Wrong, irrelevant or severely mismatched\n\nRespond ONLY with valid JSON — no other text, no markdown fences:\n{\n  \"verdict\": \"pass\" or \"fail\",\n  \"score\": <integer 1-10>,\n  \"dimension_scores\": {\n    \"relevance\": <0-2>,\n    \"accuracy\": <0-2>,\n    \"completeness\": <0-2>,\n    \"clarity\": <0-2>,\n    \"appropriateness\": <0-2>\n  },\n  \"feedback\": \"<what is wrong or confirm it is correct>\",\n  \"strengths\": \"<what was done well>\",\n  \"improvements\": \"<specific fixes needed, empty string if pass>\"\n}\n\nImportant: verdict must be \"pass\" only if score is 9 or 10.`;\nreturn [{ json: { prompt_text: promptText } }];\n"
       },
-      "id": "10576e0b-29ca-48d1-ab5e-aab912ad5dfd",
+      "id": "ea242086-dc55-41d4-8546-a367f5860bd3",
       "name": "Format Critic Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -5776,
-        1424
+        2016,
+        1312
       ]
     },
     {
@@ -144,13 +131,13 @@
         "promptType": "define",
         "text": "={{ $json.prompt_text }}"
       },
-      "id": "27964294-d183-4c78-9b12-0479139843b4",
+      "id": "787dd6e9-5b5a-4cce-b451-329655b16cc3",
       "name": "Critic Agent",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.4,
       "position": [
-        -5584,
-        1424
+        2208,
+        1312
       ]
     },
     {
@@ -158,13 +145,13 @@
         "model": "qwen2.5:14b",
         "options": {}
       },
-      "id": "f3a272f6-3532-4cf9-b5ec-817600e551a0",
+      "id": "72f8e165-1a8c-4afc-ad02-ef0922e1d708",
       "name": "Ollama – Critic",
       "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
       "typeVersion": 1,
       "position": [
-        -5584,
-        1664
+        2208,
+        1552
       ],
       "credentials": {
         "ollamaApi": {
@@ -177,13 +164,13 @@
       "parameters": {
         "jsCode": "\nconst item    = $input.first().json;\nconst g       = $getWorkflowStaticData('global');\nconst s       = g.reflection_state;\nconst rawText = (item.text || '').trim();\n\nlet verdict='fail', score=5, feedback=rawText, strengths='', improvements='', dimScores={};\ntry {\n  const m = rawText.match(/\\{[\\s\\S]*\\}/);\n  if (m) {\n    const p   = JSON.parse(m[0]);\n    verdict      = (p.verdict || 'fail').toLowerCase().trim();\n    score        = Number.isInteger(p.score) ? p.score : parseInt(p.score) || 5;\n    feedback     = p.feedback     || rawText;\n    strengths    = p.strengths    || '';\n    improvements = p.improvements || '';\n    dimScores    = p.dimension_scores || {};\n  }\n} catch(e) { verdict='fail'; feedback=rawText; }\n\nconst criticPasses  = verdict === 'pass' && score >= 9;\nconst minIterMet    = s.iteration >= (s.min_iterations || 1);\nconst capReached    = s.iteration >= s.max_iterations;\nconst isApproved    = criticPasses && minIterMet;\nconst isDone        = isApproved || capReached;\n\nlet terminationReason = 'continue';\nif      (isApproved && criticPasses) terminationReason = 'quality_threshold_met';\nelse if (capReached)                 terminationReason = 'max_iterations_safety_cap';\n\nconst fullFeedback = [\n  feedback,\n  improvements ? `\\nImprovements required:\\n${improvements}` : '',\n  Object.keys(dimScores).length ? `\\nDimension scores: ${JSON.stringify(dimScores)}` : ''\n].join('');\n\n// Token estimates for this iteration\nconst genTok  = Math.ceil((s.current_draft || '').length / 4);\nconst critTok = Math.ceil(rawText.length / 4);\n\n// Accumulate per-iteration log entry into global state\nconst iterEntry = {\n  iteration:  s.iteration,\n  generator: {\n    output:         s.current_draft,\n    token_estimate: genTok\n  },\n  critic: {\n    verdict,\n    score,\n    dimension_scores: dimScores,\n    feedback,\n    strengths,\n    improvements,\n    token_estimate: critTok\n  }\n};\n\ng.reflection_state = {\n  ...s,\n  iteration:         s.iteration + 1,\n  critic_feedback:   fullFeedback,\n  is_approved:       isApproved,\n  iterations_log:    [...(s.iterations_log || []), iterEntry],\n  total_gen_tokens:  (s.total_gen_tokens  || 0) + genTok,\n  total_crit_tokens: (s.total_crit_tokens || 0) + critTok\n};\n\nreturn [{ json: {\n  current_draft:           s.current_draft,\n  current_iteration:       s.iteration,\n  critic_verdict:          verdict,\n  critic_score:            score,\n  critic_dimension_scores: dimScores,\n  critic_feedback:         feedback,\n  critic_strengths:        strengths,\n  critic_improvements:     improvements,\n  is_approved:             isApproved,\n  cap_reached:             capReached,\n  is_done:                 isDone,\n  termination_reason:      terminationReason,\n  min_iterations:          s.min_iterations || 1,\n  complexity:              s.complexity || {},\n  input_text:              s.input_text,\n  start_time_ms:           s.start_time_ms,\n  input_token_estimate:    s.input_token_estimate,\n  max_iterations:          s.max_iterations\n} }];\n"
       },
-      "id": "7f400150-172c-4c82-811d-179cf9178561",
+      "id": "1a1bab75-7c3d-42dc-b32f-374254f91d31",
       "name": "Parse Critic Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -5296,
-        1424
+        2496,
+        1312
       ]
     },
     {
@@ -210,39 +197,39 @@
         },
         "options": {}
       },
-      "id": "5dbf22db-2ad6-45ee-95d6-9f5fb82aa185",
+      "id": "24200e25-5445-48e0-82b3-c7a1d701865f",
       "name": "Exit Gate",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        -5104,
-        1424
+        2688,
+        1312
       ]
     },
     {
       "parameters": {
         "jsCode": "\nconst s     = $input.first().json;\nconst g     = $getWorkflowStaticData('global');\nconst state = g.reflection_state || {};\n\nreturn [{ json: {\n  final_answer:           s.current_draft,\n  iterations_run:         s.current_iteration,\n  termination_reason:     s.termination_reason,\n  is_approved:            s.is_approved,\n  final_critic_score:     s.critic_score,\n  final_critic_feedback:  s.critic_feedback,\n  final_dimension_scores: s.critic_dimension_scores,\n  cap_reached:            s.cap_reached,\n  min_iterations:         s.min_iterations,\n  complexity:             s.complexity,\n  input_text:             s.input_text,\n  start_time_ms:          s.start_time_ms,\n  input_token_estimate:   s.input_token_estimate,\n  max_iterations:         s.max_iterations,\n  iterations_log:         state.iterations_log   || [],\n  total_gen_tokens:       state.total_gen_tokens  || 0,\n  total_crit_tokens:      state.total_crit_tokens || 0\n} }];\n"
       },
-      "id": "b68c4b5d-f0f4-435a-a8d7-38cdf7d79529",
+      "id": "ac831e13-7a8e-4bb1-91f7-4872651c3978",
       "name": "Loop Collector",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -4896,
-        1296
+        2896,
+        1184
       ]
     },
     {
       "parameters": {
         "jsCode": "\nconst data   = $input.first().json;\nconst endMs  = Date.now();\nconst latMs  = endMs - data.start_time_ms;\nconst latSec = parseFloat((latMs / 1000).toFixed(2));\n\nconst iterationsRun  = data.iterations_run || 0;\nconst llmCallsActual = iterationsRun * 2;   // 1 generator + 1 critic per iteration\nconst llmCallsMax    = 6;                   // max 3 iterations × 2 LLM calls\n\nconst inpTok         = data.input_token_estimate || 0;\nconst genTok         = data.total_gen_tokens     || 0;\nconst critTok        = data.total_crit_tokens    || 0;\nconst totalOutputTok = genTok + critTok;\nconst totalTok       = inpTok + totalOutputTok;\n\nreturn [{ json: {\n\n  user_prompt:  data.input_text,\n  final_answer: data.final_answer,\n\n  metadata: {\n    pattern:          'Reflection — Generate-Evaluate-Revise Loop',\n    pattern_category: 'Single-Agent Reasoning Pattern',\n    run_timestamp:    new Date().toISOString(),\n    model:            'qwen2.5:14b',\n    model_provider:   'Ollama (local)',\n    latency_ms:       latMs,\n    latency_seconds:  latSec,\n    llm_calls_actual: llmCallsActual,\n    llm_calls_max:    llmCallsMax,\n    token_usage: {\n      total_input_tokens:  inpTok,\n      total_output_tokens: totalOutputTok,\n      total_tokens:        totalTok\n    },\n    status:             'completed',\n    termination_reason: data.termination_reason || 'unknown'\n  },\n\n  execution_trace: {\n\n    reflection_turns: (data.iterations_log || []).map(t => ({\n      iteration:  t.iteration,\n      generator: {\n        output:         t.generator.output,\n        token_estimate: t.generator.token_estimate\n      },\n      critic: {\n        verdict:          t.critic.verdict,\n        score:            t.critic.score,\n        dimension_scores: t.critic.dimension_scores,\n        feedback:         t.critic.feedback,\n        strengths:        t.critic.strengths,\n        improvements:     t.critic.improvements,\n        token_estimate:   t.critic.token_estimate\n      }\n    })),\n\n    complexity_classification: {\n      word_count:              (data.complexity || {}).word_count     || 0,\n      has_analytical:          (data.complexity || {}).has_analytical || false,\n      has_multi_req:           (data.complexity || {}).has_multi_req  || false,\n      min_iterations_assigned: data.min_iterations || 1\n    },\n\n    reflection_summary: {\n      total_iterations:      iterationsRun,\n      max_iterations:        data.max_iterations || 3,\n      min_iterations:        data.min_iterations || 1,\n      exited_early:          iterationsRun < (data.max_iterations || 3),\n      quality_threshold_met: data.is_approved,\n      safety_cap_triggered:  data.cap_reached,\n      final_critic_score:    data.final_critic_score,\n      final_dimension_scores: data.final_dimension_scores || {}\n    },\n\n    structural_properties: {\n      orchestration_type: 'AI-driven – generate-evaluate-revise cycle',\n      loop_mechanism:     'direct cycle edge: Exit Gate FALSE → Format Generator Prompt',\n      state_passing:      \"$getWorkflowStaticData('global') carries current_draft + critic_feedback + iterations_log\",\n      termination_conditions: [\n        'critic score >= 9 AND iteration >= min_iterations → quality_threshold_met',\n        'iteration >= 3 → max_iterations_safety_cap'\n      ],\n      termination_logic:     'Complexity Classifier sets min_iterations; Critic evaluates quality; Code enforces both',\n      evaluation_dimensions: ['relevance', 'accuracy', 'completeness', 'clarity', 'appropriateness'],\n      scope:                 'universal – greetings, daily questions and technical/academic queries'\n    },\n\n    llm_limitation: 'n8n Ollama node (lmChatOllama typeVersion 1) does not expose a temperature parameter — metadata.temperature is therefore null. Temperature is governed by the Ollama server default (typically 0.8). To override it, set the value in the Ollama Modelfile or replace the native Ollama node with an HTTP Request node and pass temperature in the request body. Token counts are character-length estimates (chars ÷ 4) because the Ollama node does not return token usage data natively.'\n  }\n\n}}];\n"
       },
-      "id": "710f4ed4-fbe0-4445-b4f5-b7f630381448",
+      "id": "48c25f4e-206f-4efc-865f-0c823b73e461",
       "name": "RQ3 – Compute Metrics",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -4704,
-        1296
+        3088,
+        1184
       ]
     },
     {
@@ -260,13 +247,13 @@
           }
         }
       },
-      "id": "acf051c6-3b8f-4e9b-a906-8f3503fa4dae",
+      "id": "31353c1e-e56a-4fc3-a881-7fab3a529494",
       "name": "Respond – Success",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
       "position": [
-        -4512,
-        1296
+        3280,
+        1184
       ]
     }
   ],
@@ -287,17 +274,6 @@
       "main": [
         [
           {
-            "node": "Input Validator",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Input Validator": {
-      "main": [
-        [
-          {
             "node": "Init Reflection State",
             "type": "main",
             "index": 0
@@ -307,13 +283,7 @@
     },
     "Init Reflection State": {
       "main": [
-        [
-          {
-            "node": "Format Generator Prompt",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
     "Format Generator Prompt": {
@@ -439,10 +409,10 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "2e6c7409-a4bb-42a0-83e3-050a97a5f35e",
+  "versionId": "bb5fb4d6-41bc-494f-9a96-e8db1de2a99e",
   "meta": {
     "instanceId": "3b08f72cfb80f155cac1550cf0e5e2633a2c06cfaacd1f2ea62b126dcabcb29f"
   },
-  "id": "J6yYAHHLOaFI8mL4",
+  "id": "BfksNAfRVlT3cLl1",
   "tags": []
 }
